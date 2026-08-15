@@ -2231,8 +2231,6 @@ UpdateWrapper(
 	hr = CoCreateInstance(&CLSID_TaskbarList, NULL,
 		CLSCTX_INPROC_SERVER, &IID_ITaskbarList3, (void **) &ptbl);
 	if (FAILED(hr)) {
-	    printf("Unable to initialize ITaskbarList3 API");
-	    ptbl->lpVtbl->Release(NULL);
 	    ptbl = NULL;
 	}
     }
@@ -3961,6 +3959,13 @@ WmIconbadgeCmd(
     if (objc < 4) {
 	Tcl_WrongNumArgs(interp, 2, objv, "window badge");
 	return TCL_ERROR;
+    }
+
+    if (ptbl == NULL) {
+       Tcl_SetObjResult(interp, Tcl_NewStringObj(
+               "Icon badges are not supported on this version of Windows",
+               TCL_INDEX_NONE));
+       return TCL_ERROR;
     }
 
     /*

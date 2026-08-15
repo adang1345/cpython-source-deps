@@ -1,22 +1,52 @@
 # This file is a Tcl script to test the Unix specific behavior of
 # labels, buttons, checkbuttons, and radiobuttons in Tk (i.e., all the
-# widgets defined in tkUnixButton.c).  It is organized in the standard
-# fashion for Tcl tests.
+# widgets defined in tkUnixButton.c).
 #
-# Copyright (c) 1994 The Regents of the University of California.
-# Copyright (c) 1994-1997 Sun Microsystems, Inc.
-# Copyright (c) 1998-1999 by Scriptics Corporation.
+# Copyright © 1994 The Regents of the University of California.
+# Copyright © 1994-1997 Sun Microsystems, Inc.
+# Copyright © 1998-1999 Scriptics Corporation.
 # All rights reserved.
 
-package require tcltest 2.2
-eval tcltest::configure $argv
-tcltest::loadTestedCommands
-namespace import -force tcltest::test
+# NOTES
+#
+# * This test file is specific for the unix platform. This includes macOS.
+#   Tests regarding buttons that are specific to the MS Windows platform
+#   go into the test file winButton.test. Tests that are platform-indifferent go
+#   into the test file button.test. Or they may exist as each other's counterparts
+#   in both unixButton.test and winButton.test, but only if they are an integral part
+#   of a contiguous sequence of tests.
+# * This test file is skipped entirely on non-unix platforms.
+#
+
+#
+# TESTFILE INITIALIZATION
+#
+
+package require tcltest 2.2; # needed in mode -singleproc 0
+
+# Load the main script main.tcl, which takes care of:
+# - setup for the application and the root window
+# - importing commands from the tcltest namespace
+# - loading of the testutils mechanism along with its utility procs
+# - loading of Tk specific test constraints (additionally to constraints
+#   provided by the package tcltest)
+source [file join [tcltest::configure -testdir] main.tcl]
+
+# Ensure a pristine initial window state
+resetWindows
+
+# Import utility procs for specific functional areas
+testutils import button image
+
 imageInit
+
+#
+# COMMON TEST SETUP
+#
 
 # Create entries in the option database to be sure that geometry options
 # like border width have predictable values.
- 
+
 option add *Label.borderWidth 2
 option add *Label.highlightThickness 0
 option add *Label.font {Helvetica -12 bold}
@@ -30,11 +60,19 @@ option add *Radiobutton.borderWidth 2
 option add *Radiobutton.highlightThickness 2
 option add *Radiobutton.font {Helvetica -12 bold}
 
-
-proc bogusTrace args {
-    error "trace aborted"
+if {[tk windowingsystem] eq "aqua"} {
+    set smallIndicator 20
+    set bigIndicator 20
+    set defaultBorder 10
+} else {
+    set smallIndicator 27
+    set bigIndicator 40
+    set defaultBorder 20
 }
 
+#
+# TESTS
+#
 
 test unixbutton-1.1 {TkpComputeButtonGeometry procedure} -constraints {
     unix testImageType
@@ -51,15 +89,18 @@ test unixbutton-1.1 {TkpComputeButtonGeometry procedure} -constraints {
     pack .b1 .b2 .b3 .b4
     update
     list [winfo reqwidth .b1] [winfo reqheight .b1] \
-        [winfo reqwidth .b2] [winfo reqheight .b2] \
-        [winfo reqwidth .b3] [winfo reqheight .b3] \
-        [winfo reqwidth .b4] [winfo reqheight .b4]
+	[winfo reqwidth .b2] [winfo reqheight .b2] \
+	[winfo reqwidth .b3] [winfo reqheight .b3] \
+	[winfo reqwidth .b4] [winfo reqheight .b4]
 } -cleanup {
     deleteWindows
     image delete image1
-} -result {68 48 74 54 112 52 112 52}
+} -result [list 68 48 \
+		74 54 \
+		[expr {72 + $bigIndicator}] 52 \
+		[expr {72 + $bigIndicator}] 52]
 test unixbutton-1.2 {TkpComputeButtonGeometry procedure} -constraints {
-    unix 
+    unix
 } -setup {
     deleteWindows
 } -body {
@@ -70,29 +111,32 @@ test unixbutton-1.2 {TkpComputeButtonGeometry procedure} -constraints {
     pack .b1 .b2 .b3 .b4
     update
     list [winfo reqwidth .b1] [winfo reqheight .b1] \
-        [winfo reqwidth .b2] [winfo reqheight .b2] \
-        [winfo reqwidth .b3] [winfo reqheight .b3] \
-        [winfo reqwidth .b4] [winfo reqheight .b4]
+	[winfo reqwidth .b2] [winfo reqheight .b2] \
+	[winfo reqwidth .b3] [winfo reqheight .b3] \
+	[winfo reqwidth .b4] [winfo reqheight .b4]
 } -cleanup {
     deleteWindows
-} -result {23 33 29 39 54 37 54 37}
+} -result [list 23 33 \
+		29 39 \
+		[expr {27 + $smallIndicator}] 37 \
+		[expr {27 + $smallIndicator}] 37]
 test unixbutton-1.3 {TkpComputeButtonGeometry procedure} -constraints {
-    unix 
+    unix
 } -setup {
     deleteWindows
 } -body {
     label .b1 -bitmap question -bd 3 -highlightthickness 4
     button .b2 -bitmap question -bd 3 -highlightthickness 0
     checkbutton .b3 -bitmap question -bd 3 -highlightthickness 1 \
-        -indicatoron 0
+	-indicatoron 0
     radiobutton .b4 -bitmap question -bd 3 -highlightthickness 1 \
     -indicatoron false
     pack .b1 .b2 .b3 .b4
     update
     list [winfo reqwidth .b1] [winfo reqheight .b1] \
-        [winfo reqwidth .b2] [winfo reqheight .b2] \
-        [winfo reqwidth .b3] [winfo reqheight .b3] \
-        [winfo reqwidth .b4] [winfo reqheight .b4]
+	[winfo reqwidth .b2] [winfo reqheight .b2] \
+	[winfo reqwidth .b3] [winfo reqheight .b3] \
+	[winfo reqwidth .b4] [winfo reqheight .b4]
 } -cleanup {
     deleteWindows
 } -result {31 41 25 35 25 35 25 35}
@@ -108,9 +152,9 @@ test unixbutton-1.4 {TkpComputeButtonGeometry procedure} -constraints {
     pack .b1 .b2 .b3 .b4
     update
     list [winfo reqwidth .b1] [winfo reqheight .b1] \
-        [winfo reqwidth .b2] [winfo reqheight .b2] \
-        [winfo reqwidth .b3] [winfo reqheight .b3] \
-        [winfo reqwidth .b4] [winfo reqheight .b4]
+	[winfo reqwidth .b2] [winfo reqheight .b2] \
+	[winfo reqwidth .b3] [winfo reqheight .b3] \
+	[winfo reqwidth .b4] [winfo reqheight .b4]
 } -cleanup {
     deleteWindows
 } -result {82 29 88 35 114 31 121 29}
@@ -150,9 +194,9 @@ test unixbutton-1.7 {TkpComputeButtonGeometry procedure} -constraints {
     pack .b1 .b2 .b3 .b4
     update
     list [winfo reqwidth .b1] [winfo reqheight .b1] \
-        [winfo reqwidth .b2] [winfo reqheight .b2] \
-        [winfo reqwidth .b3] [winfo reqheight .b3] \
-        [winfo reqwidth .b4] [winfo reqheight .b4]
+	[winfo reqwidth .b2] [winfo reqheight .b2] \
+	[winfo reqwidth .b3] [winfo reqheight .b3] \
+	[winfo reqwidth .b4] [winfo reqheight .b4]
 } -cleanup {
     deleteWindows
 } -result {74 22 60 84 168 38 61 22}
@@ -171,14 +215,14 @@ test unixbutton-1.8 {TkpComputeButtonGeometry procedure} -constraints {
     pack .b1 .b2 .b3 .b4
     update
     list [winfo reqwidth .b1] [winfo reqheight .b1] \
-        [winfo reqwidth .b2] [winfo reqheight .b2] \
-        [winfo reqwidth .b3] [winfo reqheight .b3] \
-        [winfo reqwidth .b4] [winfo reqheight .b4]
+	[winfo reqwidth .b2] [winfo reqheight .b2] \
+	[winfo reqwidth .b3] [winfo reqheight .b3] \
+	[winfo reqwidth .b4] [winfo reqheight .b4]
 } -cleanup {
     deleteWindows
 } -result {62 30 56 24 58 22 62 22}
 test unixbutton-1.9 {TkpComputeButtonGeometry procedure} -constraints {
-    unix 
+    unix
 } -setup {
     deleteWindows
 } -body {
@@ -186,9 +230,9 @@ test unixbutton-1.9 {TkpComputeButtonGeometry procedure} -constraints {
     list [winfo reqwidth .b2] [winfo reqheight .b2]
 } -cleanup {
     deleteWindows
-} -result {37 47}
+} -result [list [expr {17 + $defaultBorder}] [expr {27 + $defaultBorder}]]
 test unixbutton-1.10 {TkpComputeButtonGeometry procedure} -constraints {
-    unix 
+    unix
 } -setup {
     deleteWindows
 } -body {
@@ -196,9 +240,9 @@ test unixbutton-1.10 {TkpComputeButtonGeometry procedure} -constraints {
     list [winfo reqwidth .b2] [winfo reqheight .b2]
 } -cleanup {
     deleteWindows
-} -result {37 47}
+} -result [list [expr {17 + $defaultBorder}] [expr {27 + $defaultBorder}]]
 test unixbutton-1.11 {TkpComputeButtonGeometry procedure} -constraints {
-    unix 
+    unix
 } -setup {
     deleteWindows
 } -body {
@@ -210,7 +254,7 @@ test unixbutton-1.11 {TkpComputeButtonGeometry procedure} -constraints {
 
 
 test unixbutton-2.1 {disabled coloring check, bug 669595} -constraints {
-    unix 
+    unix
 } -setup {
     deleteWindows
     catch {unset value}
@@ -219,24 +263,24 @@ test unixbutton-2.1 {disabled coloring check, bug 669595} -constraints {
     set on 1
     set off 0
     label .l -text "The following widgets should\
-        \nshow significant visible diffs\
-        \nfor selected vs unselected."
+	\nshow significant visible diffs\
+	\nfor selected vs unselected."
     checkbutton .cb0 -anchor w -state disabled \
-        -text Unselected -variable off
+	-text Unselected -variable off
     checkbutton .cb1 -anchor w -state disabled \
-        -text Selected -variable on
+	-text Selected -variable on
     checkbutton .cb2 -anchor w -state disabled \
-        -text Unselected -variable off -disabledforeground ""
+	-text Unselected -variable off -disabledforeground ""
     checkbutton .cb3 -anchor w -state disabled \
-        -text Selected -variable on -disabledforeground ""
+	-text Selected -variable on -disabledforeground ""
     radiobutton .rb0 -anchor w -state disabled \
-        -text Unselected -variable off
+	-text Unselected -variable off
     radiobutton .rb1 -anchor w -state disabled \
-        -text Selected -variable on -value 1
+	-text Selected -variable on -value 1
     radiobutton .rb2 -anchor w -state disabled \
-        -text Unselected -variable off -disabledforeground ""
+	-text Unselected -variable off -disabledforeground ""
     radiobutton .rb3 -anchor w -state disabled \
-        -text Selected -variable on -value 1 -disabledforeground ""
+	-text Selected -variable on -value 1 -disabledforeground ""
     pack .l .cb0 .cb1 .cb2 .cb3 .rb0 .rb1 .rb2 .rb3 -side top -fill x
     after 400
     set on
@@ -244,11 +288,13 @@ test unixbutton-2.1 {disabled coloring check, bug 669595} -constraints {
     deleteWindows
 } -result 1
 
+#
+# TESTFILE CLEANUP
+#
 
-# cleanup
 imageFinish
+testutils forget button image
 cleanupTests
-return
 
 # Local variables:
 # mode: tcl

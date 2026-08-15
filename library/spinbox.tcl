@@ -4,10 +4,10 @@
 # procedures that help in implementing those bindings.  The spinbox builds
 # off the entry widget, so it can reuse Entry bindings and procedures.
 #
-# Copyright (c) 1992-1994 The Regents of the University of California.
-# Copyright (c) 1994-1997 Sun Microsystems, Inc.
-# Copyright (c) 1999-2000 Jeffrey Hobbs
-# Copyright (c) 2000 Ajuba Solutions
+# Copyright © 1992-1994 The Regents of the University of California.
+# Copyright © 1994-1997 Sun Microsystems, Inc.
+# Copyright © 1999-2000 Jeffrey Hobbs
+# Copyright © 2000 Ajuba Solutions
 #
 # See the file "license.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -52,7 +52,6 @@ bind Spinbox <<Copy>> {
     }
 }
 bind Spinbox <<Paste>> {
-    global tcl_platform
     catch {
 	if {[tk windowingsystem] ne "x11"} {
 	    catch {
@@ -80,29 +79,31 @@ bind Spinbox <<TraverseIn>> {
 
 # Standard Motif bindings:
 
-bind Spinbox <1> {
+bind Spinbox <Button-1> {
     ::tk::spinbox::ButtonDown %W %x %y
 }
 bind Spinbox <B1-Motion> {
     ::tk::spinbox::Motion %W %x %y
 }
-bind Spinbox <Double-1> {
+bind Spinbox <Double-Button-1> {
+    ::tk::spinbox::ArrowPress %W %x %y
     set tk::Priv(selectMode) word
     ::tk::spinbox::MouseSelect %W %x sel.first
 }
-bind Spinbox <Triple-1> {
+bind Spinbox <Triple-Button-1> {
+    ::tk::spinbox::ArrowPress %W %x %y
     set tk::Priv(selectMode) line
     ::tk::spinbox::MouseSelect %W %x 0
 }
-bind Spinbox <Shift-1> {
+bind Spinbox <Shift-Button-1> {
     set tk::Priv(selectMode) char
     %W selection adjust @%x
 }
-bind Spinbox <Double-Shift-1> {
+bind Spinbox <Double-Shift-Button-1> {
     set tk::Priv(selectMode) word
     ::tk::spinbox::MouseSelect %W %x
 }
-bind Spinbox <Triple-Shift-1> {
+bind Spinbox <Triple-Shift-Button-1> {
     set tk::Priv(selectMode) line
     ::tk::spinbox::MouseSelect %W %x
 }
@@ -116,7 +117,7 @@ bind Spinbox <B1-Enter> {
 bind Spinbox <ButtonRelease-1> {
     ::tk::spinbox::ButtonUp %W %x %y
 }
-bind Spinbox <Control-1> {
+bind Spinbox <Control-Button-1> {
     %W icursor @%x
 }
 
@@ -128,17 +129,17 @@ bind Spinbox <<NextLine>> {
 }
 
 bind Spinbox <<PrevChar>> {
-    ::tk::EntrySetCursor %W [expr {[%W index insert] - 1}]
+    ::tk::EntrySetCursor %W [tk::EntryPreviousChar %W insert]
 }
 bind Spinbox <<NextChar>> {
-    ::tk::EntrySetCursor %W [expr {[%W index insert] + 1}]
+    ::tk::EntrySetCursor %W [tk::EntryNextChar %W insert]
 }
 bind Spinbox <<SelectPrevChar>> {
-    ::tk::EntryKeySelect %W [expr {[%W index insert] - 1}]
+    ::tk::EntryKeySelect %W [tk::EntryPreviousChar %W insert]
     ::tk::EntrySeeInsert %W
 }
 bind Spinbox <<SelectNextChar>> {
-    ::tk::EntryKeySelect %W [expr {[%W index insert] + 1}]
+    ::tk::EntryKeySelect %W [tk::EntryNextChar %W insert]
     ::tk::EntrySeeInsert %W
 }
 bind Spinbox <<PrevWord>> {
@@ -152,7 +153,7 @@ bind Spinbox <<SelectPrevWord>> {
     ::tk::EntrySeeInsert %W
 }
 bind Spinbox <<SelectNextWord>> {
-    ::tk::EntryKeySelect %W [::tk::EntryNextWord %W insert]
+    ::tk::EntryKeySelect %W [::tk::EntrySelectNextWord %W insert]
     ::tk::EntrySeeInsert %W
 }
 bind Spinbox <<LineStart>> {
@@ -174,7 +175,8 @@ bind Spinbox <Delete> {
     if {[%W selection present]} {
 	%W delete sel.first sel.last
     } else {
-	%W delete insert
+	%W delete [tk::startOfCluster [%W get] [%W index insert]] \
+		[tk::endOfCluster [%W get] [%W index insert]]
     }
 }
 bind Spinbox <BackSpace> {
@@ -199,27 +201,26 @@ bind Spinbox <<SelectAll>> {
 bind Spinbox <<SelectNone>> {
     %W selection clear
 }
-bind Spinbox <KeyPress> {
+bind Spinbox <Key> {
     ::tk::EntryInsert %W %A
 }
 
-# Ignore all Alt, Meta, and Control keypresses unless explicitly bound.
+# Ignore all Alt, Meta, Control, Command, and Fn keypresses unless explicitly bound.
 # Otherwise, if a widget binding for one of these is defined, the
-# <KeyPress> class binding will also fire and insert the character,
+# <Key> class binding will also fire and insert the character,
 # which is wrong.  Ditto for Escape, Return, and Tab.
 
-bind Spinbox <Alt-KeyPress> {# nothing}
-bind Spinbox <Meta-KeyPress> {# nothing}
-bind Spinbox <Control-KeyPress> {# nothing}
+bind Spinbox <Alt-Key> {# nothing}
+bind Spinbox <Meta-Key> {# nothing}
+bind Spinbox <Control-Key> {# nothing}
 bind Spinbox <Escape> {# nothing}
 bind Spinbox <Return> {# nothing}
 bind Spinbox <KP_Enter> {# nothing}
 bind Spinbox <Tab> {# nothing}
 bind Spinbox <Prior> {# nothing}
 bind Spinbox <Next> {# nothing}
-if {[tk windowingsystem] eq "aqua"} {
-    bind Spinbox <Command-KeyPress> {# nothing}
-}
+bind Spinbox <Command-Key> {# nothing}
+bind Spinbox <Fn-Key> {# nothing}
 
 # On Windows, paste is done using Shift-Insert.  Shift-Insert already
 # generates the <<Paste>> event, so we don't need to do anything here.
@@ -279,7 +280,7 @@ bind Spinbox <Meta-Delete> {
 
 # A few additional bindings of my own.
 
-bind Spinbox <2> {
+bind Spinbox <Button-2> {
     if {!$tk_strictMotif} {
 	::tk::EntryScanMark %W %x
     }
@@ -299,6 +300,10 @@ bind Spinbox <B2-Motion> {
 
 proc ::tk::spinbox::Invoke {w elem} {
     variable ::tk::Priv
+
+    if {![winfo exists $w]} {
+      return
+    }
 
     if {![info exists Priv(outsideElement)]} {
 	$w invoke $elem
@@ -329,6 +334,35 @@ proc ::tk::spinbox::ClosestGap {w x} {
     incr pos
 }
 
+# ::tk::spinbox::ArrowPress --
+# This procedure is invoked to handle button-1 presses in buttonup
+# or buttondown elements of spinbox widgets.
+#
+# Arguments:
+# w -		The spinbox window in which the button was pressed.
+# x -		The x-coordinate of the button press.
+# y -		The y-coordinate of the button press.
+
+proc ::tk::spinbox::ArrowPress {w x y} {
+    variable ::tk::Priv
+
+    if {[$w cget -state] ne "disabled" && \
+	    [string match "button*" $Priv(element)]} {
+	$w selection element $Priv(element)
+	set Priv(repeated) 0
+	set Priv(relief) [$w cget -$Priv(element)relief]
+	catch {after cancel $Priv(afterId)}
+	set delay [$w cget -repeatdelay]
+	if {$delay > 0} {
+	    set Priv(afterId) [after $delay \
+		    [list ::tk::spinbox::Invoke $w $Priv(element)]]
+	}
+	if {[info exists Priv(outsideElement)]} {
+	    unset Priv(outsideElement)
+	}
+    }
+}
+
 # ::tk::spinbox::ButtonDown --
 # This procedure is invoked to handle button-1 presses in spinbox
 # widgets.  It moves the insertion cursor, sets the selection anchor,
@@ -337,6 +371,7 @@ proc ::tk::spinbox::ClosestGap {w x} {
 # Arguments:
 # w -		The spinbox window in which the button was pressed.
 # x -		The x-coordinate of the button press.
+# y -		The y-coordinate of the button press.
 
 proc ::tk::spinbox::ButtonDown {w x y} {
     variable ::tk::Priv
@@ -351,20 +386,7 @@ proc ::tk::spinbox::ButtonDown {w x y} {
 
     switch -exact $Priv(element) {
 	"buttonup" - "buttondown" {
-	    if {"disabled" ne [$w cget -state]} {
-		$w selection element $Priv(element)
-		set Priv(repeated) 0
-		set Priv(relief) [$w cget -$Priv(element)relief]
-		catch {after cancel $Priv(afterId)}
-		set delay [$w cget -repeatdelay]
-		if {$delay > 0} {
-		    set Priv(afterId) [after $delay \
-			    [list ::tk::spinbox::Invoke $w $Priv(element)]]
-		}
-		if {[info exists Priv(outsideElement)]} {
-		    unset Priv(outsideElement)
-		}
-	    }
+	    ::tk::spinbox::ArrowPress $w $x $y
 	}
 	"entry" {
 	    set Priv(selectMode) char
@@ -389,6 +411,7 @@ proc ::tk::spinbox::ButtonDown {w x y} {
 # Arguments:
 # w -		The spinbox window in which the button was pressed.
 # x -		The x-coordinate of the button press.
+# y -		The y-coordinate of the button press.
 
 proc ::tk::spinbox::ButtonUp {w x y} {
     variable ::tk::Priv
@@ -397,13 +420,23 @@ proc ::tk::spinbox::ButtonUp {w x y} {
 
     # Priv(relief) may not exist if the ButtonUp is not paired with
     # a preceding ButtonDown
+    #
     if {[info exists Priv(element)] && [info exists Priv(relief)] && \
 	    [string match "button*" $Priv(element)]} {
 	if {[info exists Priv(repeated)] && !$Priv(repeated)} {
 	    $w invoke $Priv(element)
 	}
-	$w configure -$Priv(element)relief $Priv(relief)
-	$w selection element none
+
+	# If the value of the -command option is a nonempty string then
+	# the "$w invoke $Priv(element)" line above triggers an invocation
+	# of that command, which in turn, as a side effect, might set
+	# Priv(element) to "entry" (see bug [fe5549bad8]).  Guard against
+	# such cases by checking the value of Priv(element) again.
+	#
+	if {[string match "button*" $Priv(element)]} {
+	    $w configure -$Priv(element)relief $Priv(relief)
+	    $w selection element none
+	}
     }
 }
 
@@ -446,11 +479,11 @@ proc ::tk::spinbox::MouseSelect {w x {cursor {}}} {
 	}
 	word {
 	    if {$cur < [$w index anchor]} {
-		set before [tcl_wordBreakBefore [$w get] $cur]
-		set after [tcl_wordBreakAfter [$w get] [expr {$anchor-1}]]
+		set before [tk::wordBreakBefore [$w get] $cur]
+		set after [tk::wordBreakAfter [$w get] $anchor-1]
 	    } else {
-		set before [tcl_wordBreakBefore [$w get] $anchor]
-		set after [tcl_wordBreakAfter [$w get] [expr {$cur - 1}]]
+		set before [tk::wordBreakBefore [$w get] $anchor]
+		set after [tk::wordBreakAfter [$w get] $cur-1]
 	    }
 	    if {$before < 0} {
 		set before 0
@@ -492,6 +525,8 @@ proc ::tk::spinbox::Paste {w x} {
 #
 # Arguments:
 # w -		The spinbox window.
+# x -		The x-coordinate of the mouse.
+# y -		The y-coordinate of the mouse.
 
 proc ::tk::spinbox::Motion {w x y} {
     variable ::tk::Priv
@@ -551,5 +586,5 @@ proc ::tk::spinbox::AutoScan {w} {
 
 proc ::tk::spinbox::GetSelection {w} {
     return [string range [$w get] [$w index sel.first] \
-	    [expr {[$w index sel.last] - 1}]]
+	    [$w index sel.last]-1]
 }

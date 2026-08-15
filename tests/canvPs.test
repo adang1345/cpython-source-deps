@@ -2,34 +2,58 @@
 # for canvases to files and channels. It exercises the procedure
 # TkCanvPostscriptCmd in generic/tkCanvPs.c
 #
-# Copyright (c) 1995 Sun Microsystems, Inc.
-# Copyright (c) 1998-1999 by Scriptics Corporation.
+# Copyright © 1995 Sun Microsystems, Inc.
+# Copyright © 1998-1999 Scriptics Corporation.
 # All rights reserved.
 
-package require tcltest 2.2
-namespace import ::tcltest::*
-eval tcltest::configure $argv
-tcltest::loadTestedCommands
+#
+# TESTFILE INITIALIZATION
+#
+
+package require tcltest 2.2; # needed in mode -singleproc 0
+
+# Load the main script main.tcl, which takes care of:
+# - setup for the application and the root window
+# - importing commands from the tcltest namespace
+# - loading of the testutils mechanism along with its utility procs
+# - loading of Tk specific test constraints (additionally to constraints
+#   provided by the package tcltest)
+source [file join [tcltest::configure -testdir] main.tcl]
+
+# Ensure a pristine initial window state
+resetWindows
+
+# Import utility procs for specific functional areas
+testutils import image
+
 imageInit
 
-# canvas used in 1.* and 2.* test cases
+#
+# TESTS
+#
+
+#
+# COMMON TEST SETUP
+#
+# For tests canvas-1.* and canvas-2.*
+#
 canvas .c -width 400 -height 300 -bd 2 -relief sunken
 .c create rectangle 20 20 80 80 -fill red
 pack .c
 update
 
 test canvPs-1.1 {test writing to a file} -constraints {
-    unixOrPc
+    unixOrWin
 } -setup {
     set foo [makeFile {} foo.ps]
 } -body {
-    .c postscript -file $foo
-    file exists $foo
+    set res [.c postscript -file $foo]
+    lappend res [file exists $foo]
 } -cleanup {
     removeFile foo.ps
 } -result 1
 test canvPs-1.2 {test writing to a file, idempotency} -constraints {
-    unixOrPc
+    unixOrWin
 } -setup {
     set foo [makeFile {} foo.ps]
     set bar [makeFile {} bar.ps]
@@ -48,21 +72,21 @@ test canvPs-1.2 {test writing to a file, idempotency} -constraints {
 
 
 test canvPs-2.1 {test writing to a channel} -constraints {
-    unixOrPc
+    unixOrWin
 } -setup {
     set foo [makeFile {} foo.ps]
     file delete $foo
 } -body {
     set chan [open $foo w]
     fconfigure $chan -translation lf
-    .c postscript -channel $chan
+    set res [.c postscript -channel $chan]
     close $chan
-    file exists $foo
+    lappend res [file exists $foo]
 } -cleanup {
     removeFile foo.ps
 } -result 1
 test canvPs-2.2 {test writing to channel, idempotency} -constraints {
-    unixOrPc
+    unixOrWin
 } -setup {
     set foo [makeFile {} foo.ps]
     set bar [makeFile {} bar.ps]
@@ -130,12 +154,13 @@ test canvPs-2.4 {test writing to channel and file, same output} -constraints {
     removeFile foo.ps
     removeFile bar.ps
 } -result ok
+
+#
+# COMMON TEST CLEANUP
+#
 destroy .c
 
-
-test canvPs-3.1 {test ps generation with an embedded window} -constraints {
-    notAqua
-} -setup {
+test canvPs-3.1 {test ps generation with an embedded window} -setup {
     set bar [makeFile {} bar.ps]
     file delete $bar
 } -body {
@@ -158,7 +183,7 @@ test canvPs-3.1 {test ps generation with an embedded window} -constraints {
     destroy .c
     imageCleanup
     removeFile bar.ps
-} -result {1}
+} -result 1
 test canvPs-3.2 {test ps generation with an embedded window not mapped} -setup {
     set bar [makeFile {} bar.ps]
     file delete $bar
@@ -172,7 +197,7 @@ test canvPs-3.2 {test ps generation with an embedded window not mapped} -setup {
 } -cleanup {
     destroy .c
     removeFile bar.ps
-} -result {1}
+} -result 1
 
 
 test canvPs-4.1 {test ps generation with single-point uncolored poly, bug 734498} -body {
@@ -184,12 +209,32 @@ test canvPs-4.1 {test ps generation with single-point uncolored poly, bug 734498
 } -returnCodes ok -match glob -result *
 
 
-# cleanup
+test canvPs-5.1 {test ps generation with bitmap, bug 424773a00c} -body {
+    pack [canvas .c]
+    update
+    .c create bitmap 50 50 -bitmap questhead
+    .c postscript  ; # was crashing on macOS
+} -cleanup {
+    destroy .c
+} -returnCodes ok -match glob -result *
+test canvPs-5.2 {test ps generation with image} -body {
+    pack [canvas .c]
+    update
+    .c create image 50 50 -image ::tk::icons::information
+    .c postscript
+} -cleanup {
+    destroy .c
+} -returnCodes ok -match glob -result *
+
+#
+# TESTFILE CLEANUP
+#
+
 unset -nocomplain foo bar
 imageFinish
+testutils forget image
 deleteWindows
 cleanupTests
-return
 
 # Local variables:
 # mode: tcl

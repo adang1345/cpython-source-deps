@@ -3,7 +3,7 @@
  *
  *	This file contains a stub dll entry point.
  *
- * Copyright (c) 1995 Sun Microsystems, Inc.
+ * Copyright © 1995 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -12,7 +12,7 @@
 #include "tkWinInt.h"
 #ifndef STATIC_BUILD
 
-#ifdef HAVE_NO_SEH
+#if defined(__GNUC__)
 
 /*
  * Unlike Borland and Microsoft, we don't register exception handlers by
@@ -101,9 +101,10 @@ DllMain(
     DWORD reason,
     LPVOID reserved)
 {
-#ifdef HAVE_NO_SEH
+#if defined(HAVE_NO_SEH) && !defined(__aarch64__) && defined(NDEBUG)
     TCLEXCEPTION_REGISTRATION registration;
 #endif
+    (void)reserved;
 
     /*
      * If we are attaching to the DLL from a new process, tell Tk about the
@@ -119,11 +120,13 @@ DllMain(
     case DLL_PROCESS_DETACH:
 	/*
 	 * Protect the call to TkFinalize in an SEH block. We can't be
-	 * guarenteed Tk is always being unloaded from a stable condition.
+	 * guaranteed Tk is always being unloaded from a stable condition.
 	 */
 
-#ifdef HAVE_NO_SEH
-#   ifdef __WIN64
+#if defined(HAVE_NO_SEH) || defined(__aarch64__) || !defined(NDEBUG)
+#   if defined(__aarch64__) || !defined(NDEBUG)
+	TkFinalize(NULL);
+#   elif defined(_WIN64)
 	__asm__ __volatile__ (
 
 	    /*
@@ -134,7 +137,7 @@ DllMain(
 	    "leaq	%[registration], %%rdx"		"\n\t"
 	    "movq	%%gs:0,		%%rax"		"\n\t"
 	    "movq	%%rax,		0x0(%%rdx)"	"\n\t" /* link */
-	    "leaq	1f,		%%rax"		"\n\t"
+	    "leaq	1f(%%rip),	%%rax"		"\n\t"
 	    "movq	%%rax,		0x8(%%rdx)"	"\n\t" /* handler */
 	    "movq	%%rbp,		0x10(%%rdx)"	"\n\t" /* rbp */
 	    "movq	%%rsp,		0x18(%%rdx)"	"\n\t" /* rsp */
@@ -146,13 +149,21 @@ DllMain(
 
 	    "movq	%%rdx,		%%gs:0"		"\n\t"
 
-	    /*
-	     * Call TkFinalize
-	     */
+	    :
+	    /* No outputs */
+	    :
+	    [registration]	"m"	(registration),
+	    [error]		"i"	(TCL_ERROR)
+	    :
+	    "%rax", "%rdx", "memory"
+	);
 
-	    "movq	$0x0,		0x0(%%esp)"		"\n\t"
-	    "call	TkFinalize"			"\n\t"
+	/* Just do a regular C call so we don't need to worry about following
+	 * the calling convention, specially the registers the function may
+	 * clobber: */
+	TkFinalize(NULL);
 
+	__asm__ __volatile__ (
 	    /*
 	     * Come here on a normal exit. Recover the TCLEXCEPTION_REGISTRATION
 	     * and store a TCL_OK status
@@ -186,11 +197,9 @@ DllMain(
 	    :
 	    /* No outputs */
 	    :
-	    [registration]	"m"	(registration),
-	    [ok]		"i"	(TCL_OK),
-	    [error]		"i"	(TCL_ERROR)
+	    [ok]		"i"	(TCL_OK)
 	    :
-	    "%rax", "%rbx", "%rcx", "%rdx", "%rsi", "%rdi", "memory"
+	    "%rax", "%rdx", "memory"
 	);
 
 #   else
@@ -216,12 +225,18 @@ DllMain(
 
 	    "movl	%%edx,		%%fs:0"		"\n\t"
 
-	    /*
-	     * Call TkFinalize
-	     */
+	    :
+	    /* No outputs */
+	    :
+	    [registration]	"m"	(registration),
+	    [error]		"i"	(TCL_ERROR)
+	    :
+	    "%eax", "%ebx", "%edx", "memory"
+	);
 
-	    "movl	$0x0,		0x0(%%esp)"		"\n\t"
-	    "call	_TkFinalize"			"\n\t"
+	TkFinalize(NULL);
+
+	__asm__ __volatile__ (
 
 	    /*
 	     * Come here on a normal exit. Recover the TCLEXCEPTION_REGISTRATION
@@ -257,11 +272,9 @@ DllMain(
 	    :
 	    /* No outputs */
 	    :
-	    [registration]	"m"	(registration),
-	    [ok]		"i"	(TCL_OK),
-	    [error]		"i"	(TCL_ERROR)
+	    [ok]		"i"	(TCL_OK)
 	    :
-	    "%eax", "%ebx", "%ecx", "%edx", "%esi", "%edi", "memory"
+	    "%eax", "%ebx", "%edx", "memory"
 	);
 
 #   endif

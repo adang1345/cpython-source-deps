@@ -7,7 +7,7 @@ if {![info exists widgetDemo]} {
     error "This script should be run from the \"widget\" demo."
 }
 
-package require Tk
+package require tk
 
 set w .text
 catch {destroy $w}
@@ -23,18 +23,18 @@ pack $btns -side bottom -fill x
 
 text $w.text -yscrollcommand [list $w.scroll set] -setgrid 1 \
 	-height 30 -undo 1 -autosep 1
-scrollbar $w.scroll -command [list $w.text yview]
+ttk::scrollbar $w.scroll -command [list $w.text yview]
 pack $w.scroll -side right -fill y
 pack $w.text -expand yes -fill both
 
 # TIP 324 Demo: [tk fontchooser]
 proc fontchooserToggle {} {
     tk fontchooser [expr {[tk fontchooser configure -visible] ?
-            "hide" : "show"}]
+	    "hide" : "show"}]
 }
 proc fontchooserVisibility {w} {
     $w configure -text [expr {[tk fontchooser configure -visible] ?
-            "Hide Font Dialog" : "Show Font Dialog"}]
+	    "Hide Font Dialog" : "Show Font Dialog"}]
 }
 proc fontchooserFocus {w} {
     tk fontchooser configure -font [$w cget -font] \
@@ -57,8 +57,9 @@ can do to a text widget:
 
 1. Scrolling. Use the scrollbar to adjust the view in the text window.
 
-2. Scanning. Press mouse button 2 in the text window and drag up or down.
-This will drag the text at high speed to allow you to scan its contents.
+2. Scanning. Press the middle mouse button in the text window and drag up
+or down. This will drag the text at high speed to allow you to scan its
+contents.
 
 3. Insert text. Press mouse button 1 to set the insertion cursor, then
 type text.  What you type will be added to the widget.
@@ -77,7 +78,8 @@ text, in which case it will replace the selected text.
 
 6. Copy the selection. To copy the selection into this window, select
 what you want to copy (either here or in another application), then
-click button 2 to copy the selection to the point of the mouse cursor.
+click the middle mouse button to copy the selection to the point of the
+mouse cursor.
 
 7. Edit.  Text widgets support the standard Motif editing characters
 plus many Emacs editing characters.  Backspace and Control-h erase the

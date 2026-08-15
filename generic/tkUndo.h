@@ -3,7 +3,7 @@
  *
  *	Declarations shared among the files that implement an undo stack.
  *
- * Copyright (c) 2002 Ludwig Callewaert.
+ * Copyright © 2002 Ludwig Callewaert.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -30,7 +30,7 @@ typedef enum {
  * can also be defined by Tcl scripts).
  */
 
-typedef int (TkUndoProc)(Tcl_Interp *interp, ClientData clientData,
+typedef int (TkUndoProc)(Tcl_Interp *interp, void *clientData,
 			Tcl_Obj *objPtr);
 
 /*
@@ -47,7 +47,7 @@ typedef struct TkUndoSubAtom {
 				 * contain everything. */
     TkUndoProc *funcPtr;	/* Function pointer for callback to perform
 				 * undo/redo actions. */
-    ClientData clientData;	/* Data for 'funcPtr'. */
+    void *clientData;	/* Data for 'funcPtr'. */
     Tcl_Obj *action;		/* Command to apply the action that was
 				 * taken. */
     struct TkUndoSubAtom *next;	/* Pointer to the next element in the linked
@@ -96,14 +96,16 @@ MODULE_SCOPE void	TkUndoClearStack(TkUndoAtom **stack);
  */
 
 MODULE_SCOPE TkUndoRedoStack *TkUndoInitStack(Tcl_Interp *interp, int maxdepth);
-MODULE_SCOPE void	TkUndoSetDepth(TkUndoRedoStack *stack, int maxdepth);
+MODULE_SCOPE void	TkUndoSetMaxDepth(TkUndoRedoStack *stack, int maxdepth);
 MODULE_SCOPE void	TkUndoClearStacks(TkUndoRedoStack *stack);
 MODULE_SCOPE void	TkUndoFreeStack(TkUndoRedoStack *stack);
+MODULE_SCOPE int	TkUndoCanRedo(TkUndoRedoStack *stack);
+MODULE_SCOPE int	TkUndoCanUndo(TkUndoRedoStack *stack);
 MODULE_SCOPE void	TkUndoInsertUndoSeparator(TkUndoRedoStack *stack);
 MODULE_SCOPE TkUndoSubAtom *TkUndoMakeCmdSubAtom(Tcl_Command command,
 			    Tcl_Obj *actionScript, TkUndoSubAtom *subAtomList);
 MODULE_SCOPE TkUndoSubAtom *TkUndoMakeSubAtom(TkUndoProc *funcPtr,
-			    ClientData clientData, Tcl_Obj *actionScript,
+			    void *clientData, Tcl_Obj *actionScript,
 			    TkUndoSubAtom *subAtomList);
 MODULE_SCOPE void	TkUndoPushAction(TkUndoRedoStack *stack,
 			    TkUndoSubAtom *apply, TkUndoSubAtom *revert);

@@ -1,5 +1,5 @@
 # tkConfig.sh --
-# 
+#
 # This shell script (for sh) is generated automatically by Tk's
 # configure script.  It will create shell variables for most of
 # the configuration options discovered by the configure script.
@@ -25,8 +25,9 @@ TK_DEFS='@DEFS@'
 # Flag, 1: we built a shared lib, 0 we didn't
 TK_SHARED_BUILD=@TK_SHARED_BUILD@
 
-# This indicates if Tk was build with debugging symbols
-TK_DBGX=@TK_DBGX@
+# TK_DBGX used to be used to distinguish debug vs. non-debug builds.
+# This was a righteous pain so the core doesn't do that any more.
+TK_DBGX=
 
 # The name of the Tk library (may be either a .a file or a shared library):
 TK_LIB_FILE='@TK_LIB_FILE@'
@@ -34,15 +35,15 @@ TK_LIB_FILE='@TK_LIB_FILE@'
 # Additional libraries to use when linking Tk.
 TK_LIBS='@LIBS@ @LIBS_GUI@'
 
-# Top-level directory in which Tcl's platform-independent files are
+# Top-level directory in which Tk's platform-independent files are
 # installed.
 TK_PREFIX='@prefix@'
 
-# Top-level directory in which Tcl's platform-specific files (e.g.
+# Top-level directory in which Tk's platform-specific files (e.g.
 # executables) are installed.
 TK_EXEC_PREFIX='@exec_prefix@'
 
-# -l flag to pass to the linker to pick up the Tcl library
+# -l flag to pass to the linker to pick up the Tk library
 TK_LIB_FLAG='@TK_LIB_FLAG@'
 
 # String to pass to linker to pick up the Tk library from its

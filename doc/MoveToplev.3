@@ -4,7 +4,7 @@
 '\"
 '\" See the file "license.terms" for information on usage and redistribution
 '\" of this file, and for a DISCLAIMER OF ALL WARRANTIES.
-'\" 
+'\"
 .TH Tk_MoveToplevelWindow 3 "" Tk "Tk Library Procedures"
 .so man.macros
 .BS
@@ -14,7 +14,8 @@ Tk_MoveToplevelWindow \- Adjust the position of a top-level window
 .nf
 \fB#include <tk.h>\fR
 .sp
-\fBTk_MoveToplevelWindow(\fItkwin, x, y\fB)\fR
+\fBTk_MoveToplevelWindow\fR(\fItkwin, x, y\fR)
+.fi
 .SH ARGUMENTS
 .AS Tk_Window tkwin
 .AP Tk_Window tkwin in
@@ -46,6 +47,6 @@ menus that want to appear at a particular place on the screen.
 When \fBTk_MoveToplevelWindow\fR is called it does not immediately
 pass on the new desired location to the window manager;  it defers
 this action until all other outstanding work has been completed,
-using the \fBTk_DoWhenIdle\fR mechanism.
+using the \fBTcl_DoWhenIdle\fR mechanism.
 .SH KEYWORDS
 position, top-level window, window manager

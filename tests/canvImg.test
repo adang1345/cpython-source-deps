@@ -1,23 +1,45 @@
 # This file is a Tcl script to test out the procedures in tkCanvImg.c,
-# which implement canvas "image" items.  It is organized in the standard
-# fashion for Tcl tests.
+# which implement canvas "image" items.
 #
-# Copyright (c) 1994 The Regents of the University of California.
-# Copyright (c) 1994-1996 Sun Microsystems, Inc.
-# Copyright (c) 1998-1999 by Scriptics Corporation.
+# Copyright © 1994 The Regents of the University of California.
+# Copyright © 1994-1996 Sun Microsystems, Inc.
+# Copyright © 1998-1999 Scriptics Corporation.
 # All rights reserved.
 
-package require tcltest 2.2
-namespace import ::tcltest::*
-eval tcltest::configure $argv
-tcltest::loadTestedCommands
+#
+# TESTFILE INITIALIZATION
+#
+
+package require tcltest 2.2; # needed in mode -singleproc 0
+
+# Load the main script main.tcl, which takes care of:
+# - setup for the application and the root window
+# - importing commands from the tcltest namespace
+# - loading of the testutils mechanism along with its utility procs
+# - loading of Tk specific test constraints (additionally to constraints
+#   provided by the package tcltest)
+source [file join [tcltest::configure -testdir] main.tcl]
+
+# Ensure a pristine initial window state
+resetWindows
+
+# Import utility procs for specific functional areas
+testutils import image
+
 imageInit
 
-# Canvas used in every test case of the whole file
+#
+# COMMON TEST SETUP
+#
+# For every test case of the whole file
+#
 canvas .c
 pack .c
 update
 
+#
+# TESTS
+#
 
 test canvImg-1.1 {options for image items} -body {
     .c create image 50 50 -anchor nw -tags i1
@@ -29,7 +51,7 @@ test canvImg-1.2 {options for image items} -body {
     .c create image 50 50 -anchor gorp -tags i1
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {bad anchor position "gorp": must be n, ne, e, se, s, sw, w, nw, or center}
+} -returnCodes error -result {bad anchor "gorp": must be n, ne, e, se, s, sw, w, nw, or center}
 test canvImg-1.3 {options for image items} -constraints testImageType -setup {
     image create test foo
 	.c delete all
@@ -44,7 +66,7 @@ test canvImg-1.4 {options for image items} -body {
     .c create image 50 50 -image unknown -tags i1
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {image "unknown" doesn't exist}
+} -returnCodes error -result {image "unknown" does not exist}
 test canvImg-1.5 {options for image items} -constraints testImageType -setup {
     image create test foo
 	.c delete all
@@ -60,12 +82,12 @@ test canvImg-2.1 {CreateImage procedure} -body {
     .c create image 40
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {wrong # coordinates: expected 2, got 1}
+} -returnCodes error -result {wrong # coordinates: expected 2, got 1}
 test canvImg-2.2 {CreateImage procedure} -body {
     .c create image 40 50 60
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {unknown option "60"}
+} -returnCodes error -result {unknown option "60"}
 test canvImg-2.3 {CreateImage procedure} -body {
     .c delete all
     set i [.c create image 50 50]
@@ -79,17 +101,17 @@ test canvImg-2.4 {CreateImage procedure} -body {
     .c create image xyz 40
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {bad screen distance "xyz"}
+} -returnCodes error -result {expected screen distance but got "xyz"}
 test canvImg-2.5 {CreateImage procedure} -body {
     .c create image 50 qrs
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {bad screen distance "qrs"}
+} -returnCodes error -result {expected screen distance but got "qrs"}
 test canvImg-2.6 {CreateImage procedure} -constraints testImageType -body {
     .c create image 50 50 -gorp foo
 } -cleanup {
     .c delete all
-} -returnCodes {error} -result {unknown option "-gorp"}
+} -returnCodes error -result {unknown option "-gorp"}
 
 
 test canvImg-3.1 {ImageCoords procedure} -constraints testImageType -setup {
@@ -109,7 +131,7 @@ test canvImg-3.2 {ImageCoords procedure} -constraints testImageType -setup {
 } -cleanup {
 	.c delete all
 	image delete foo
-} -returnCodes {error} -result {bad screen distance "dumb"}
+} -returnCodes error -result {expected screen distance but got "dumb"}
 test canvImg-3.3 {ImageCoords procedure} -constraints testImageType -setup {
 	image create test foo
 } -body {
@@ -119,7 +141,7 @@ test canvImg-3.3 {ImageCoords procedure} -constraints testImageType -setup {
 } -cleanup {
 	.c delete all
 	image delete foo
-} -returnCodes {error} -result {bad screen distance "dumb0"}
+} -returnCodes error -result {expected screen distance but got "dumb0"}
 test canvImg-3.4 {ImageCoords procedure} -constraints testImageType -setup {
 	image create test foo
 } -body {
@@ -129,7 +151,7 @@ test canvImg-3.4 {ImageCoords procedure} -constraints testImageType -setup {
 } -cleanup {
 	.c delete all
 	image delete foo
-} -returnCodes {error} -result {wrong # coordinates: expected 2, got 1}
+} -returnCodes error -result {wrong # coordinates: expected 2, got 1}
 test canvImg-3.5 {ImageCoords procedure} -constraints testImageType -setup {
 	image create test foo
 } -body {
@@ -139,7 +161,7 @@ test canvImg-3.5 {ImageCoords procedure} -constraints testImageType -setup {
 } -cleanup {
 	.c delete all
 	image delete foo
-} -returnCodes {error} -result {wrong # coordinates: expected 0 or 2, got 3}
+} -returnCodes error -result {wrong # coordinates: expected 0 or 2, got 3}
 
 
 test canvImg-4.1 {ConfiugreImage procedure} -constraints testImageType -setup {
@@ -156,24 +178,31 @@ test canvImg-4.1 {ConfiugreImage procedure} -constraints testImageType -setup {
 	.c delete all
 	image delete foo
 } -result {{{foo free}} {}}
-test canvImg-4.2 {ConfiugreImage procedure} -constraints testImageType -setup {
+test canvImg-4.2 {ConfigureImage procedure} -constraints testImageType -setup {
     .c delete all
 } -body {
-	image create test foo -variable x
+    image create test foo -variable x
     image create test foo2 -variable y
     foo2 changed 0 0 0 0 80 60
     .c create image 50 100 -image foo -tags i1 -anchor nw
     update
     set x {}
     set y {}
+    set timer [after 500 {lappend y "timed out"}]
     .c itemconfigure i1 -image foo2
+    update idletasks
     update
+    # On MacOS we need to wait for the test image display procedure to run.
+    while {"timed out" ni $y && [lindex $y end 1] ne "display"} {
+	vwait y
+    }
+    after cancel $timer
     list $x $y [.c bbox i1]
 } -cleanup {
-	.c delete all
-	image delete foo
-	image delete foo2
-} -result {{{foo free}} {{foo2 get} {foo2 display 0 0 80 60 30 30}} {50 100 130 160}}
+    .c delete all
+    image delete foo
+    image delete foo2
+} -result {{{foo free}} {{foo2 get} {foo2 display 0 0 80 60}} {50 100 130 160}}
 test canvImg-4.3 {ConfiugreImage procedure} -constraints testImageType -setup {
     .c delete all
 } -body {
@@ -188,7 +217,7 @@ test canvImg-4.3 {ConfiugreImage procedure} -constraints testImageType -setup {
 } -cleanup {
 	.c delete all
 	image delete foo foo2
-} -returnCodes {error} -result {image "lousy" doesn't exist}
+} -returnCodes error -result {image "lousy" does not exist}
 
 
 test canvImg-5.1 {DeleteImage procedure} -constraints testImageType -setup {
@@ -315,7 +344,7 @@ test canvImg-6.9 {ComputeImageBbox procedure} -constraints testImageType -setup 
     imageCleanup
 } -result {5 15 35 30}
 test canvImg-6.10 {ComputeImageBbox procedure} -constraints {
-    testImageType 
+    testImageType
 } -setup {
     image create test foo
     .c delete all
@@ -328,7 +357,7 @@ test canvImg-6.10 {ComputeImageBbox procedure} -constraints {
     image delete foo
 } -result {20 15 50 30}
 test canvImg-6.11 {ComputeImageBbox procedure} -constraints {
-    testImageType 
+    testImageType
 } -setup {
     image create test foo
     .c delete all
@@ -341,7 +370,7 @@ test canvImg-6.11 {ComputeImageBbox procedure} -constraints {
     image delete foo
 } -result {20 23 50 38}
 test canvImg-6.12 {ComputeImageBbox procedure} -constraints {
-	testImageType 
+	testImageType
 } -setup {
     image create test foo
     .c delete all
@@ -354,11 +383,8 @@ test canvImg-6.12 {ComputeImageBbox procedure} -constraints {
     image delete foo
 } -result {5 23 35 38}
 
-# The following test is non-portable because of differences in
-# coordinate rounding on some machines (does 0.5 round  up?).
-
 test canvImg-7.1 {DisplayImage procedure} -constraints {
-	nonPortable testImageType
+    testImageType
 } -setup {
     .c delete all
 } -body {
@@ -369,7 +395,7 @@ test canvImg-7.1 {DisplayImage procedure} -constraints {
     .c create rect 55 110 65 115 -width 1 -outline black -fill white
     update
     set x
-} -result {{foo display 4 9 12 6 30 30}}
+} -result {{foo display 4 9 12 6}}
 test canvImg-7.2 {DisplayImage procedure, no image} -body {
     .c delete all
     .c create image 50 100 -tags i1
@@ -378,11 +404,15 @@ test canvImg-7.2 {DisplayImage procedure, no image} -body {
     update
 } -result {}
 
-
-# image used in 8.* test cases
+#
+# COMMON TEST SETUP
+#
+# For tests canvImg-8.*
+#
 if {[testConstraint testImageType]} {
     image create test foo
 }
+
 test canvImg-8.1 {ImageToArea procedure} -constraints testImageType -setup {
 	.c create image 50 100 -image foo -tags image -anchor nw
 	.c create rect 10 10 20 20 -tags rect -fill black -width 0 -outline {}
@@ -545,6 +575,10 @@ test canvImg-8.18 {ImageToArea procedure} -constraints testImageType -setup {
 } -cleanup {
 	.c delete all
 } -result {rect}
+
+#
+# COMMON TEST CLEANUP
+#
 .c delete all
 
 test canvImg-8.19 {ImageToArea procedure} -constraints testImageType -body {
@@ -703,10 +737,13 @@ test canvImg-8.44 {ImageToArea procedure} -constraints testImageType -body {
 } -cleanup {
 	.c delete all
 } -result {}
+
+#
+# COMMON TEST SETUP
+#
 if {[testConstraint testImageType]} {
 	image delete foo
 }
-
 
 test canvImg-9.1 {DisplayImage procedure} -constraints testImageType -setup {
     .c delete all
@@ -722,35 +759,42 @@ test canvImg-9.1 {DisplayImage procedure} -constraints testImageType -setup {
 
 test canvImg-10.1 {TranslateImage procedure} -constraints testImageType -setup {
     .c delete all
+    update
 } -body {
-	image create test foo -variable x
+    image create test foo -variable x
     .c create image 50 100 -image foo -tags image -anchor nw
     update
     set x {}
+    set timer [after 500 {lappend x "timed out"}]
     foo changed 2 4 6 8 30 15
-    update
+    vwait x
+    after cancel $timer
     return $x
 } -cleanup {
-	.c delete all
-	image delete foo
-} -result {{foo display 2 4 6 8 30 30}}
+    .c delete all
+    image delete foo
+} -result {{foo display 2 4 6 8}}
 
 test canvImg-11.1 {TranslateImage procedure} -constraints testImageType -setup {
     .c delete all
+    update
 } -body {
-	image create test foo -variable x
+    image create test foo -variable x
     .c create image 50 100 -image foo -tags image -anchor nw
     update
     set x {}
+    set timer [after 500 {lappend x "timed out"}]
     foo changed 2 4 6 8 40 50
+    vwait x
+    after cancel $timer
     update
     return $x
 } -cleanup {
-	.c delete all
-	image delete foo
-} -result {{foo display 0 0 40 50 30 30}}
+    .c delete all
+    image delete foo
+} -result {{foo display 0 0 40 50}}
 test canvImg-11.2 {ImageChangedProc procedure} -constraints {
-	testImageType 
+	testImageType
 } -setup {
     .c delete all
 } -body {
@@ -764,32 +808,37 @@ test canvImg-11.2 {ImageChangedProc procedure} -constraints {
 	.c delete all
 	image delete foo
 } -result {30 75 70 125}
+
 test canvImg-11.3 {ImageChangedProc procedure} -constraints {
-	testImageType 
+	testImageType
 } -setup {
     .c delete all
+    update idletasks
 } -body {
     image create test foo -variable x
-	image create test foo2 -variable y
+    image create test foo2 -variable z
     foo changed 0 0 0 0 40 50
     foo2 changed 0 0 0 0 80 60
-
     .c create image 50 100 -image foo -tags image -anchor nw
     .c create image 70 110 -image foo2 -anchor nw
-    update
-    set y {}
-    image create test foo -variable x
-    update
-    return $y
+    set z {}
+    set timer [after 500 {lappend z "timed out"}]
+    image delete foo
+    vwait z
+    after cancel $timer
+    return $z
 } -cleanup {
-	.c delete all
-	image delete foo foo2
-} -result {{foo2 display 0 0 20 40 50 40}}
+    .c delete all
+    image delete foo2
+} -result {{foo2 display 0 0 80 60}}
 
-# cleanup
+#
+# TESTFILE CLEANUP
+#
+
 imageFinish
+testutils forget image
 cleanupTests
-return
 
 # Local variables:
 # mode: tcl

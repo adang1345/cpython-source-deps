@@ -3,8 +3,8 @@
  *
  *	This module provides the implementation of an undo stack.
  *
- * Copyright (c) 2002 by Ludwig Callewaert.
- * Copyright (c) 2003-2004 by Vincent Darley.
+ * Copyright © 2002 Ludwig Callewaert.
+ * Copyright © 2003-2004 Vincent Darley.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -94,7 +94,7 @@ TkUndoInsertSeparator(
     TkUndoAtom *separator;
 
     if (*stack!=NULL && (*stack)->type!=TK_UNDO_SEPARATOR) {
-	separator = ckalloc(sizeof(TkUndoAtom));
+	separator = (TkUndoAtom *)ckalloc(sizeof(TkUndoAtom));
 	separator->type = TK_UNDO_SEPARATOR;
 	TkUndoPushStack(stack,separator);
 	return 1;
@@ -181,7 +181,7 @@ TkUndoPushAction(
 {
     TkUndoAtom *atom;
 
-    atom = ckalloc(sizeof(TkUndoAtom));
+    atom = (TkUndoAtom *)ckalloc(sizeof(TkUndoAtom));
     atom->type = TK_UNDO_ACTION;
     atom->apply = apply;
     atom->revert = revert;
@@ -237,14 +237,14 @@ TkUndoMakeCmdSubAtom(
 	Tcl_Panic("NULL command and actionScript in TkUndoMakeCmdSubAtom");
     }
 
-    atom = ckalloc(sizeof(TkUndoSubAtom));
+    atom = (TkUndoSubAtom *)ckalloc(sizeof(TkUndoSubAtom));
     atom->command = command;
     atom->funcPtr = NULL;
     atom->clientData = NULL;
     atom->next = NULL;
     atom->action = actionScript;
     if (atom->action != NULL) {
-        Tcl_IncrRefCount(atom->action);
+	Tcl_IncrRefCount(atom->action);
     }
 
     if (subAtomList != NULL) {
@@ -287,7 +287,7 @@ TkUndoSubAtom *
 TkUndoMakeSubAtom(
     TkUndoProc *funcPtr,	/* Callback function to perform the
 				 * undo/redo. */
-    ClientData clientData,	/* Data to pass to the callback function. */
+    void *clientData,	/* Data to pass to the callback function. */
     Tcl_Obj *actionScript,	/* Additional Tcl data to pass to the callback
 				 * function (may be NULL). */
     TkUndoSubAtom *subAtomList)	/* Add to the end of this list of actions if
@@ -299,14 +299,14 @@ TkUndoMakeSubAtom(
 	Tcl_Panic("NULL funcPtr in TkUndoMakeSubAtom");
     }
 
-    atom = ckalloc(sizeof(TkUndoSubAtom));
+    atom = (TkUndoSubAtom *)ckalloc(sizeof(TkUndoSubAtom));
     atom->command = NULL;
     atom->funcPtr = funcPtr;
     atom->clientData = clientData;
     atom->next = NULL;
     atom->action = actionScript;
     if (atom->action != NULL) {
-        Tcl_IncrRefCount(atom->action);
+	Tcl_IncrRefCount(atom->action);
     }
 
     if (subAtomList != NULL) {
@@ -341,7 +341,7 @@ TkUndoInitStack(
 {
     TkUndoRedoStack *stack;	/* An Undo/Redo stack */
 
-    stack = ckalloc(sizeof(TkUndoRedoStack));
+    stack = (TkUndoRedoStack *)ckalloc(sizeof(TkUndoRedoStack));
     stack->undoStack = NULL;
     stack->redoStack = NULL;
     stack->interp = interp;
@@ -353,7 +353,7 @@ TkUndoInitStack(
 /*
  *----------------------------------------------------------------------
  *
- * TkUndoSetDepth --
+ * TkUndoSetMaxDepth --
  *
  *	Set the maximum depth of stack.
  *
@@ -368,7 +368,7 @@ TkUndoInitStack(
  */
 
 void
-TkUndoSetDepth(
+TkUndoSetMaxDepth(
     TkUndoRedoStack *stack,	/* An Undo/Redo stack */
     int maxdepth)		/* The maximum stack depth */
 {
@@ -478,6 +478,52 @@ TkUndoFreeStack(
 /*
  *----------------------------------------------------------------------
  *
+ * TkUndoCanRedo --
+ *
+ *	Returns true if redo is possible, i.e. if the redo stack is not empty.
+ *
+ * Results:
+ *	 A boolean.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TkUndoCanRedo(
+    TkUndoRedoStack *stack)	/* An Undo/Redo stack */
+{
+    return stack->redoStack != NULL;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkUndoCanUndo --
+ *
+ *	Returns true if undo is possible, i.e. if the undo stack is not empty.
+ *
+ * Results:
+ *	 A boolean.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TkUndoCanUndo(
+    TkUndoRedoStack *stack)	/* An Undo/Redo stack */
+{
+    return stack->undoStack != NULL;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * TkUndoInsertUndoSeparator --
  *
  *	Insert a separator on the undo stack, indicating a border for an
@@ -498,7 +544,7 @@ TkUndoInsertUndoSeparator(
 {
     if (TkUndoInsertSeparator(&stack->undoStack)) {
 	stack->depth++;
-	TkUndoSetDepth(stack, stack->maxdepth);
+	TkUndoSetMaxDepth(stack, stack->maxdepth);
     }
 }
 
@@ -666,7 +712,7 @@ EvaluateActionList(
 	    Tcl_GetCommandFullName(interp, action->command, cmdNameObj);
 	    Tcl_ListObjAppendElement(NULL, evalObj, cmdNameObj);
 	    if (action->action != NULL) {
-	        Tcl_ListObjAppendList(NULL, evalObj, action->action);
+		Tcl_ListObjAppendList(NULL, evalObj, action->action);
 	    }
 	    result = Tcl_EvalObjEx(interp, evalObj, TCL_EVAL_GLOBAL);
 	    Tcl_DecrRefCount(evalObj);

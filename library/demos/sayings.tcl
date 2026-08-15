@@ -8,7 +8,7 @@ if {![info exists widgetDemo]} {
     error "This script should be run from the \"widget\" demo."
 }
 
-package require Tk
+package require tk
 
 set w .sayings
 catch {destroy $w}
@@ -24,12 +24,12 @@ pack $w.msg -side top
 set btns [addSeeDismiss $w.buttons $w]
 pack $btns -side bottom -fill x
 
-frame $w.frame -borderwidth 10
+frame $w.frame -borderwidth 7.5p
 pack $w.frame -side top -expand yes -fill both -padx 1c
 
 
-scrollbar $w.frame.yscroll -command "$w.frame.list yview"
-scrollbar $w.frame.xscroll -orient horizontal \
+ttk::scrollbar $w.frame.yscroll -command "$w.frame.list yview"
+ttk::scrollbar $w.frame.xscroll -orient horizontal \
     -command "$w.frame.list xview"
 listbox $w.frame.list -width 20 -height 10 -setgrid 1 \
     -yscroll "$w.frame.yscroll set" -xscroll "$w.frame.xscroll set"

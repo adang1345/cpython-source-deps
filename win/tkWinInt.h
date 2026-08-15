@@ -4,8 +4,8 @@
  *	This file contains declarations that are shared among the
  *	Windows-specific parts of Tk, but aren't used by the rest of Tk.
  *
- * Copyright (c) 1995-1997 Sun Microsystems, Inc.
- * Copyright (c) 1998-2000 by Scriptics Corporation.
+ * Copyright © 1995-1997 Sun Microsystems, Inc.
+ * Copyright © 1998-2000 Scriptics Corporation.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -14,16 +14,18 @@
 #ifndef _TKWININT
 #define _TKWININT
 
-#ifndef _TKINT
-#include "tkInt.h"
-#endif
-
 /*
- * Include platform specific public interfaces.
+ * Include platform specific public interfaces as the very first step. This is
+ * necessary because definitions provided by subsequent header files depend on
+ * the interface versions defined in tkWin.h
  */
 
 #ifndef _TKWIN
 #include "tkWin.h"
+#endif
+
+#ifndef _TKINT
+#include "tkInt.h"
 #endif
 
 /*
@@ -117,8 +119,8 @@ typedef struct {
  * The following macros define the class names for Tk Window types.
  */
 
-#define TK_WIN_TOPLEVEL_CLASS_NAME TEXT("TkTopLevel")
-#define TK_WIN_CHILD_CLASS_NAME TEXT("TkChild")
+#define TK_WIN_TOPLEVEL_CLASS_NAME L"TkTopLevel"
+#define TK_WIN_CHILD_CLASS_NAME L"TkChild"
 
 /*
  * The following variable is a translation table between X gc functions and
@@ -140,8 +142,11 @@ MODULE_SCOPE const int tkpWinBltModes[];
  * Internal functions used by more than one source file.
  */
 
-#include "tkIntPlatDecls.h"
+#include "tkIntPlatDecls.h"  /* IWYU pragma: export */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*
  * Special proc needed as tsd accessor function between
  * tkWinX.c:GenerateXEvent and tkWinClipboard.c:UpdateClipboard
@@ -185,25 +190,55 @@ MODULE_SCOPE void		TkWinSetupSystemFonts(TkMainInfo *mainPtr);
 
 #define TK_THEME_WIN_CLASSIC    1
 #define TK_THEME_WIN_XP         2
+#define TK_THEME_WIN_VISTA      3
 
 /*
  * The following is implemented in tkWinWm and used by tkWinEmbed.c
  */
 
-MODULE_SCOPE void		TkpWinToplevelWithDraw(TkWindow *winPtr);
-MODULE_SCOPE void		TkpWinToplevelIconify(TkWindow *winPtr);
-MODULE_SCOPE void		TkpWinToplevelDeiconify(TkWindow *winPtr);
-MODULE_SCOPE long		TkpWinToplevelIsControlledByWm(TkWindow *winPtr);
-MODULE_SCOPE long		TkpWinToplevelMove(TkWindow *winPtr, int x, int y);
-MODULE_SCOPE long		TkpWinToplevelOverrideRedirect(TkWindow *winPtr,
+MODULE_SCOPE void	TkpWinToplevelWithDraw(TkWindow *winPtr);
+MODULE_SCOPE void	TkpWinToplevelIconify(TkWindow *winPtr);
+MODULE_SCOPE void	TkpWinToplevelDeiconify(TkWindow *winPtr);
+MODULE_SCOPE long	TkpWinToplevelIsControlledByWm(TkWindow *winPtr);
+MODULE_SCOPE long	TkpWinToplevelMove(TkWindow *winPtr, int x, int y);
+MODULE_SCOPE long	TkpWinToplevelOverrideRedirect(TkWindow *winPtr,
 			    int reqValue);
-MODULE_SCOPE void		TkpWinToplevelDetachWindow(TkWindow *winPtr);
-MODULE_SCOPE int		TkpWmGetState(TkWindow *winPtr);
+MODULE_SCOPE void	TkpWinToplevelDetachWindow(TkWindow *winPtr);
+MODULE_SCOPE int	TkpWmGetState(TkWindow *winPtr);
+
+MODULE_SCOPE int	TkTranslateWinEvent(HWND hwnd, UINT message,
+			    WPARAM wParam, LPARAM lParam, LRESULT *result);
+MODULE_SCOPE void	TkWinPointerEvent(HWND hwnd, int x, int y);
+
+/*
+ * The following is implemented in tkWinPointer.c and also used in tkWinWindow.c
+ */
+
+MODULE_SCOPE void	TkSetCursorPos(int x, int y);
+
+/*
+ * The following is implemented in tkWinSysTray.c
+ */
+
+MODULE_SCOPE  int	WinIcoInit (Tcl_Interp* interp);
+
+/*
+ * The following is implemented in tkWinGDI.c
+ */
+
+MODULE_SCOPE  int	Winprint_Init(Tcl_Interp* interp);
+
+/*
+ * The following is implemented in tkWinDraw.c and used in tkUtil.c
+ */
+
+MODULE_SCOPE  void	TkWinDrawDottedRect(Display *disp, Drawable d,
+			    long pixel, int x, int y, int width, int height);
 
 /*
  * Common routines used in Windows implementation
  */
-MODULE_SCOPE Tcl_Obj *	        TkWin32ErrorObj(HRESULT hrError);
+MODULE_SCOPE Tcl_Obj *	TkWin32ErrorObj(HRESULT hrError);
 
 
 /*
@@ -213,17 +248,8 @@ MODULE_SCOPE Tcl_Obj *	        TkWin32ErrorObj(HRESULT hrError);
  */
 
 #ifndef GetClassLongPtr
-#   define GetClassLongPtrA	GetClassLongA
 #   define GetClassLongPtrW	GetClassLongW
-#   define SetClassLongPtrA	SetClassLongA
 #   define SetClassLongPtrW	SetClassLongW
-#   ifdef UNICODE
-#	define GetClassLongPtr	GetClassLongPtrW
-#	define SetClassLongPtr	SetClassLongPtrW
-#   else
-#	define GetClassLongPtr	GetClassLongPtrA
-#	define SetClassLongPtr	SetClassLongPtrA
-#   endif /* !UNICODE */
 #endif /* !GetClassLongPtr */
 #ifndef GCLP_HICON
 #   define GCLP_HICON		GCL_HICON
@@ -233,17 +259,8 @@ MODULE_SCOPE Tcl_Obj *	        TkWin32ErrorObj(HRESULT hrError);
 #endif /* !GCLP_HICONSM */
 
 #ifndef GetWindowLongPtr
-#   define GetWindowLongPtrA	GetWindowLongA
 #   define GetWindowLongPtrW	GetWindowLongW
-#   define SetWindowLongPtrA	SetWindowLongA
 #   define SetWindowLongPtrW	SetWindowLongW
-#   ifdef UNICODE
-#	define GetWindowLongPtr	GetWindowLongPtrW
-#	define SetWindowLongPtr	SetWindowLongPtrW
-#   else
-#	define GetWindowLongPtr	GetWindowLongPtrW
-#	define SetWindowLongPtr	SetWindowLongPtrW
-#   endif /* !UNICODE */
 #endif /* !GetWindowLongPtr */
 #ifndef GWLP_WNDPROC
 #define GWLP_WNDPROC		GWL_WNDPROC
@@ -252,5 +269,9 @@ MODULE_SCOPE Tcl_Obj *	        TkWin32ErrorObj(HRESULT hrError);
 #define GWLP_USERDATA		GWL_USERDATA
 #define GWLP_ID			GWL_ID
 #endif /* !GWLP_WNDPROC */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _TKWININT */

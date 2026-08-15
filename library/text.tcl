@@ -3,9 +3,9 @@
 # This file defines the default bindings for Tk text widgets and provides
 # procedures that help in implementing the bindings.
 #
-# Copyright (c) 1992-1994 The Regents of the University of California.
-# Copyright (c) 1994-1997 Sun Microsystems, Inc.
-# Copyright (c) 1998 by Scriptics Corporation.
+# Copyright © 1992-1994 The Regents of the University of California.
+# Copyright © 1994-1997 Sun Microsystems, Inc.
+# Copyright © 1998 Scriptics Corporation.
 #
 # See the file "license.terms" for information on usage and redistribution
 # of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -38,9 +38,11 @@
 # The code below creates the default class bindings for text widgets.
 #-------------------------------------------------------------------------
 
+
+
 # Standard Motif bindings:
 
-bind Text <1> {
+bind Text <Button-1> {
     tk::TextButton1 %W %x %y
     %W tag remove sel 0.0 end
 }
@@ -49,26 +51,26 @@ bind Text <B1-Motion> {
     set tk::Priv(y) %y
     tk::TextSelectTo %W %x %y
 }
-bind Text <Double-1> {
+bind Text <Double-Button-1> {
     set tk::Priv(selectMode) word
     tk::TextSelectTo %W %x %y
     catch {%W mark set insert sel.first}
 }
-bind Text <Triple-1> {
+bind Text <Triple-Button-1> {
     set tk::Priv(selectMode) line
     tk::TextSelectTo %W %x %y
     catch {%W mark set insert sel.first}
 }
-bind Text <Shift-1> {
+bind Text <Shift-Button-1> {
     tk::TextResetAnchor %W @%x,%y
     set tk::Priv(selectMode) char
     tk::TextSelectTo %W %x %y
 }
-bind Text <Double-Shift-1>	{
+bind Text <Double-Shift-Button-1>	{
     set tk::Priv(selectMode) word
     tk::TextSelectTo %W %x %y 1
 }
-bind Text <Triple-Shift-1>	{
+bind Text <Triple-Shift-Button-1>	{
     set tk::Priv(selectMode) line
     tk::TextSelectTo %W %x %y
 }
@@ -83,14 +85,24 @@ bind Text <B1-Enter> {
 bind Text <ButtonRelease-1> {
     tk::CancelRepeat
 }
-bind Text <Control-1> {
+
+bind Text <Control-Button-1> {
     %W mark set insert @%x,%y
+    # An operation that moves the insert mark without making it
+    # one end of the selection must insert an autoseparator
+    if {[%W cget -autoseparators]} {
+	%W edit separator
+    }
 }
+# stop an accidental double click triggering <Double-Button-1>
+bind Text <Double-Control-Button-1> { # nothing }
+# stop an accidental movement triggering <B1-Motion>
+bind Text <Control-B1-Motion> { # nothing }
 bind Text <<PrevChar>> {
-    tk::TextSetCursor %W insert-1displayindices
+    tk::TextSetCursor %W [tk::TextPrevPos %W insert tk::startOfCluster]
 }
 bind Text <<NextChar>> {
-    tk::TextSetCursor %W insert+1displayindices
+    tk::TextSetCursor %W [tk::TextNextPos %W insert tk::endOfCluster]
 }
 bind Text <<PrevLine>> {
     tk::TextSetCursor %W [tk::TextUpDownLine %W -1]
@@ -99,10 +111,10 @@ bind Text <<NextLine>> {
     tk::TextSetCursor %W [tk::TextUpDownLine %W 1]
 }
 bind Text <<SelectPrevChar>> {
-    tk::TextKeySelect %W [%W index {insert - 1displayindices}]
+    tk::TextKeySelect %W [tk::TextPrevPos %W insert tk::startOfCluster]
 }
 bind Text <<SelectNextChar>> {
-    tk::TextKeySelect %W [%W index {insert + 1displayindices}]
+    tk::TextKeySelect %W [tk::TextNextPos %W insert tk::endOfCluster]
 }
 bind Text <<SelectPrevLine>> {
     tk::TextKeySelect %W [tk::TextUpDownLine %W -1]
@@ -111,7 +123,7 @@ bind Text <<SelectNextLine>> {
     tk::TextKeySelect %W [tk::TextUpDownLine %W 1]
 }
 bind Text <<PrevWord>> {
-    tk::TextSetCursor %W [tk::TextPrevPos %W insert tcl_startOfPreviousWord]
+    tk::TextSetCursor %W [tk::TextPrevPos %W insert tk::startOfPreviousWord]
 }
 bind Text <<NextWord>> {
     tk::TextSetCursor %W [tk::TextNextWord %W insert]
@@ -123,10 +135,10 @@ bind Text <<NextPara>> {
     tk::TextSetCursor %W [tk::TextNextPara %W insert]
 }
 bind Text <<SelectPrevWord>> {
-    tk::TextKeySelect %W [tk::TextPrevPos %W insert tcl_startOfPreviousWord]
+    tk::TextKeySelect %W [tk::TextPrevPos %W insert tk::startOfPreviousWord]
 }
 bind Text <<SelectNextWord>> {
-    tk::TextKeySelect %W [tk::TextNextWord %W insert]
+    tk::TextKeySelect %W [tk::TextSelectNextWord %W insert]
 }
 bind Text <<SelectPrevPara>> {
     tk::TextKeySelect %W [tk::TextPrevPara %W insert]
@@ -210,7 +222,8 @@ bind Text <Delete> {
 	%W delete sel.first sel.last
     } else {
 	if {[%W compare end != insert+1c]} {
-	    %W delete insert
+	    %W delete [tk::TextPrevPos %W insert+1c tk::startOfCluster] \
+		    [tk::TextNextPos %W insert tk::endOfCluster]
 	}
 	%W see insert
     }
@@ -220,7 +233,8 @@ bind Text <BackSpace> {
 	%W delete sel.first sel.last
     } else {
 	if {[%W compare insert != 1.0]} {
-	    %W delete insert-1c
+	    %W delete [tk::TextPrevPos %W insert tk::startOfCluster] \
+		    [tk::TextNextPos %W insert-1c tk::endOfCluster]
 	}
 	%W see insert
     }
@@ -245,6 +259,11 @@ bind Text <<SelectAll>> {
 }
 bind Text <<SelectNone>> {
     %W tag remove sel 1.0 end
+    # An operation that clears the selection must insert an autoseparator,
+    # because the selection operation may have moved the insert mark
+    if {[%W cget -autoseparators]} {
+	%W edit separator
+    }
 }
 bind Text <<Cut>> {
     tk_textCut %W
@@ -256,7 +275,15 @@ bind Text <<Paste>> {
     tk_textPaste %W
 }
 bind Text <<Clear>> {
+    # Make <<Clear>> an atomic operation on the Undo stack,
+    # i.e. separate it from other delete operations on either side
+    if {[%W cget -autoseparators]} {
+	%W edit separator
+    }
     catch {%W delete sel.first sel.last}
+    if {[%W cget -autoseparators]} {
+	%W edit separator
+    }
 }
 bind Text <<PasteSelection>> {
     if {$tk_strictMotif || ![info exists tk::Priv(mouseMoved)]
@@ -267,23 +294,22 @@ bind Text <<PasteSelection>> {
 bind Text <Insert> {
     catch {tk::TextInsert %W [::tk::GetSelection %W PRIMARY]}
 }
-bind Text <KeyPress> {
+bind Text <Key> {
     tk::TextInsert %W %A
 }
 
-# Ignore all Alt, Meta, and Control keypresses unless explicitly bound.
+# Ignore all Alt, Meta, Control, Command, and Fn keypresses unless explicitly bound.
 # Otherwise, if a widget binding for one of these is defined, the
-# <KeyPress> class binding will also fire and insert the character,
+# <Key> class binding will also fire and insert the character,
 # which is wrong.  Ditto for <Escape>.
 
-bind Text <Alt-KeyPress> {# nothing }
-bind Text <Meta-KeyPress> {# nothing}
-bind Text <Control-KeyPress> {# nothing}
+bind Text <Alt-Key> {# nothing }
+bind Text <Meta-Key> {# nothing}
+bind Text <Control-Key> {# nothing}
 bind Text <Escape> {# nothing}
 bind Text <KP_Enter> {# nothing}
-if {[tk windowingsystem] eq "aqua"} {
-    bind Text <Command-KeyPress> {# nothing}
-}
+bind Text <Command-Key> {# nothing}
+bind Text <Fn-Key> {# nothing}
 
 # Additional emacs-like bindings:
 
@@ -314,7 +340,16 @@ bind Text <Control-t> {
 }
 
 bind Text <<Undo>> {
+    # An Undo operation may remove the separator at the top of the Undo stack.
+    # Then the item at the top of the stack gets merged with the subsequent changes.
+    # Place separators before and after Undo to prevent this.
+    if {[%W cget -autoseparators]} {
+	%W edit separator
+    }
     catch { %W edit undo }
+    if {[%W cget -autoseparators]} {
+	%W edit separator
+    }
 }
 
 bind Text <<Redo>> {
@@ -323,7 +358,7 @@ bind Text <<Redo>> {
 
 bind Text <Meta-b> {
     if {!$tk_strictMotif} {
-	tk::TextSetCursor %W [tk::TextPrevPos %W insert tcl_startOfPreviousWord]
+	tk::TextSetCursor %W [tk::TextPrevPos %W insert tk::startOfPreviousWord]
     }
 }
 bind Text <Meta-d> {
@@ -348,13 +383,47 @@ bind Text <Meta-greater> {
 }
 bind Text <Meta-BackSpace> {
     if {!$tk_strictMotif} {
-	%W delete [tk::TextPrevPos %W insert tcl_startOfPreviousWord] insert
+	%W delete [tk::TextPrevPos %W insert tk::startOfPreviousWord] insert
     }
 }
 bind Text <Meta-Delete> {
     if {!$tk_strictMotif} {
-	%W delete [tk::TextPrevPos %W insert tcl_startOfPreviousWord] insert
+	%W delete [tk::TextPrevPos %W insert tk::startOfPreviousWord] insert
     }
+}
+
+# Bindings for IME text input.
+
+bind Text <<TkStartIMEMarkedText>> {
+    dict set ::tk::Priv(IMETextMark) "%W" [%W index insert]
+}
+bind Text <<TkEndIMEMarkedText>> {
+    ::tk::TextEndIMEMarkedText %W
+}
+bind Text <<TkClearIMEMarkedText>> {
+    %W delete IMEmarkedtext.first IMEmarkedtext.last
+}
+bind Text <<TkAccentBackspace>> {
+    %W delete insert-1c
+}
+
+# ::tk::TextEndIMEMarkedText --
+#
+# Handles input method text marking in a text widget.
+#
+# Arguments:
+# w -	The text widget
+
+proc ::tk::TextEndIMEMarkedText {w} {
+    variable Priv
+    if {[catch {
+	set mark [dict get $Priv(IMETextMark) $w]
+    }]} {
+	bell
+	return
+    }
+    $w tag add IMEmarkedtext $mark insert
+    $w tag configure IMEmarkedtext -underline 1
 }
 
 # Macintosh only bindings:
@@ -375,7 +444,7 @@ bind Text <Control-h> {
 	%W see insert
     }
 }
-bind Text <2> {
+bind Text <Button-2> {
     if {!$tk_strictMotif} {
 	tk::TextScanMark %W %x %y
     }
@@ -387,71 +456,25 @@ bind Text <B2-Motion> {
 }
 set ::tk::Priv(prevPos) {}
 
-# The MouseWheel will typically only fire on Windows and MacOS X.
-# However, someone could use the "event generate" command to produce one
-# on other platforms.  We must be careful not to round -ve values of %D
-# down to zero.
-
-if {[tk windowingsystem] eq "aqua"} {
-    bind Text <MouseWheel> {
-        %W yview scroll [expr {-15 * (%D)}] pixels
-    }
-    bind Text <Option-MouseWheel> {
-        %W yview scroll [expr {-150 * (%D)}] pixels
-    }
-    bind Text <Shift-MouseWheel> {
-        %W xview scroll [expr {-15 * (%D)}] pixels
-    }
-    bind Text <Shift-Option-MouseWheel> {
-        %W xview scroll [expr {-150 * (%D)}] pixels
-    }
-} else {
-    # We must make sure that positive and negative movements are rounded
-    # equally to integers, avoiding the problem that
-    #     (int)1/3 = 0,
-    # but
-    #     (int)-1/3 = -1
-    # The following code ensure equal +/- behaviour.
-    bind Text <MouseWheel> {
-	if {%D >= 0} {
-	    %W yview scroll [expr {-%D/3}] pixels
-	} else {
-	    %W yview scroll [expr {(2-%D)/3}] pixels
-	}
-    }
-    bind Text <Shift-MouseWheel> {
-	if {%D >= 0} {
-	    %W xview scroll [expr {-%D/3}] pixels
-	} else {
-	    %W xview scroll [expr {(2-%D)/3}] pixels
-	}
-    }
+bind Text <MouseWheel> {
+    tk::MouseWheel %W y [tk::ScaleNum %D] -4.0 pixels
 }
-
-if {"x11" eq [tk windowingsystem]} {
-    # Support for mousewheels on Linux/Unix commonly comes through mapping
-    # the wheel to the extended buttons.  If you have a mousewheel, find
-    # Linux configuration info at:
-    #	http://www.inria.fr/koala/colas/mouse-wheel-scroll/
-    bind Text <4> {
-	if {!$tk_strictMotif} {
-	    %W yview scroll -50 pixels
-	}
+bind Text <Option-MouseWheel> {
+    tk::MouseWheel %W y [tk::ScaleNum %D] -1.2 pixels
+}
+bind Text <Shift-MouseWheel> {
+    tk::MouseWheel %W x [tk::ScaleNum %D] -4.0 pixels
+}
+bind Text <Shift-Option-MouseWheel> {
+    tk::MouseWheel %W x [tk::ScaleNum %D] -1.2 pixels
+}
+bind Text <TouchpadScroll> {
+    lassign [tk::PreciseScrollDeltas %D] tk::Priv(deltaX) tk::Priv(deltaY)
+    if {$tk::Priv(deltaX) != 0} {
+	%W xview scroll [tk::ScaleNum [expr {-$tk::Priv(deltaX)}]] pixels
     }
-    bind Text <5> {
-	if {!$tk_strictMotif} {
-	    %W yview scroll 50 pixels
-	}
-    }
-    bind Text <Shift-4> {
-	if {!$tk_strictMotif} {
-	    %W xview scroll -50 pixels
-	}
-    }
-    bind Text <Shift-5> {
-	if {!$tk_strictMotif} {
-	    %W xview scroll 50 pixels
-	}
+    if {$tk::Priv(deltaY) != 0} {
+	%W yview scroll [tk::ScaleNum [expr {-$tk::Priv(deltaY)}]] pixels
     }
 }
 
@@ -471,7 +494,11 @@ proc ::tk::TextClosestGap {w x y} {
     if {$bbox eq ""} {
 	return $pos
     }
-    if {($x - [lindex $bbox 0]) < ([lindex $bbox 2]/2)} {
+    # The check on y coord of the line bbox with dlineinfo is to fix
+    # [a9cf210a42] to properly handle selecting and moving the mouse
+    # out of the widget.
+    if {$y < [lindex [$w dlineinfo $pos] 1] ||
+	    $x - [lindex $bbox 0] < [lindex $bbox 2]/2} {
 	return $pos
     }
     $w index "$pos + 1 char"
@@ -504,12 +531,7 @@ proc ::tk::TextButton1 {w x y} {
     } else {
 	$w mark gravity $anchorname left
     }
-    # Allow focus in any case on Windows, because that will let the
-    # selection be displayed even for state disabled text widgets.
-    if {[tk windowingsystem] eq "win32" \
-	    || [$w cget -state] eq "normal"} {
-	focus $w
-    }
+    focus $w
     if {[$w cget -autoseparators]} {
 	$w edit separator
     }
@@ -530,20 +552,19 @@ proc ::tk::TextButton1 {w x y} {
 # Arguments:
 # w -		The text window in which the button was pressed.
 # x -		Mouse x position.
-# y - 		Mouse y position.
+# y -		Mouse y position.
 
 set ::tk::Priv(textanchoruid) 0
 
 proc ::tk::TextAnchor {w} {
     variable Priv
     if {![info exists Priv(textanchor,$w)]} {
-        set Priv(textanchor,$w) tk::anchor[incr Priv(textanchoruid)]
+	set Priv(textanchor,$w) tk::anchor[incr Priv(textanchoruid)]
     }
     return $Priv(textanchor,$w)
 }
 
 proc ::tk::TextSelectTo {w x y {extend 0}} {
-    global tcl_platform
     variable ::tk::Priv
 
     set anchorname [tk::TextAnchor $w]
@@ -582,8 +603,8 @@ proc ::tk::TextSelectTo {w x y {extend 0}} {
 	    }
 
 	    # Now find word boundaries
-	    set first [TextPrevPos $w "$first + 1c" tcl_wordBreakBefore]
-	    set last [TextNextPos $w "$last - 1c" tcl_wordBreakAfter]
+	    set first [TextPrevPos $w "$first + 1c" tk::wordBreakBefore]
+	    set last [TextNextPos $w "$last - 1c" tk::wordBreakAfter]
 	}
 	line {
 	    # Set initial range based only on the anchor
@@ -644,7 +665,7 @@ proc ::tk::TextKeyExtend {w index} {
 #
 # Arguments:
 # w -		The text window.
-# x, y - 	Position of the mouse.
+# x, y -	Position of the mouse.
 
 proc ::tk::TextPasteSelection {w x y} {
     $w mark set insert [TextClosestGap $w $x $y]
@@ -738,6 +759,9 @@ proc ::tk::TextKeySelect {w new} {
 	}
 	$w mark set $anchorname insert
     } else {
+	if {[catch {$w index $anchorname}]} {
+	    $w mark set $anchorname insert
+	}
 	if {[$w compare $new < $anchorname]} {
 	    set first $new
 	    set last $anchorname
@@ -858,11 +882,10 @@ proc ::tk::TextInsert {w s} {
 
 # ::tk::TextUpDownLine --
 # Returns the index of the character one display line above or below the
-# insertion cursor.  There are two tricky things here.  First, we want to
-# maintain the original x position across repeated operations, even though
-# some lines that will get passed through don't have enough characters to
-# cover the original column.  Second, don't try to scroll past the
-# beginning or end of the text.
+# insertion cursor.  There is a tricky thing here: we want to maintain the
+# original x position across repeated operations, even though some lines
+# that will get passed through don't have enough characters to cover the
+# original column.
 #
 # Arguments:
 # w -		The text window in which the cursor is to move.
@@ -879,11 +902,11 @@ proc ::tk::TextUpDownLine {w n} {
     set lines [$w count -displaylines $Priv(textPosOrig) $i]
     set new [$w index \
 	    "$Priv(textPosOrig) + [expr {$lines + $n}] displaylines"]
-    if {[$w compare $new == end] \
-	    || [$w compare $new == "insert display linestart"]} {
-	set new $i
-    }
     set Priv(prevPos) $new
+    if {[$w compare $new == "end display lineend"] \
+	    || [$w compare $new == "insert display linestart"]} {
+	set Priv(textPosOrig) $new
+    }
     return $new
 }
 
@@ -1022,9 +1045,18 @@ proc ::tk_textCopy w {
 
 proc ::tk_textCut w {
     if {![catch {set data [$w get sel.first sel.last]}]} {
+	# make <<Cut>> an atomic operation on the Undo stack,
+	# i.e. separate it from other delete operations on either side
+	set oldSeparator [$w cget -autoseparators]
+	if {([$w cget -state] eq "normal") && $oldSeparator} {
+	    $w edit separator
+	}
 	clipboard clear -displayof $w
 	clipboard append -displayof $w $data
 	$w delete sel.first sel.last
+	if {([$w cget -state] eq "normal") && $oldSeparator} {
+	    $w edit separator
+	}
     }
 }
 
@@ -1036,7 +1068,6 @@ proc ::tk_textCut w {
 # w -		Name of a text widget.
 
 proc ::tk_textPaste w {
-    global tcl_platform
     if {![catch {::tk::GetSelection $w CLIPBOARD} sel]} {
 	set oldSeparator [$w cget -autoseparators]
 	if {$oldSeparator} {
@@ -1055,25 +1086,30 @@ proc ::tk_textPaste w {
 }
 
 # ::tk::TextNextWord --
-# Returns the index of the next word position after a given position in the
-# text.  The next word is platform dependent and may be either the next
-# end-of-word position or the next start-of-word position after the next
-# end-of-word position.
+# Returns the index of the next start-of-word position after the next
+# end-of-word position after a given position in the text.
 #
 # Arguments:
 # w -		The text window in which the cursor is to move.
 # start -	Position at which to start search.
 
-if {[tk windowingsystem] eq "win32"}  {
-    proc ::tk::TextNextWord {w start} {
-	TextNextPos $w [TextNextPos $w $start tcl_endOfWord] \
-		tcl_startOfNextWord
-    }
-} else {
-    proc ::tk::TextNextWord {w start} {
-	TextNextPos $w $start tcl_endOfWord
-    }
+proc ::tk::TextNextWord {w start} {
+    TextNextPos $w [TextNextPos $w $start tk::endOfWord] \
+	    tk::startOfNextWord
 }
+
+# ::tk::TextSelectNextWord --
+# Returns the index of the next end-of-word position after a given
+# position in the text.
+#
+# Arguments:
+# w -		The text window in which the cursor is to move.
+# start -	Position at which to start search.
+
+proc ::tk::TextSelectNextWord {w start} {
+    TextNextPos $w $start tk::endOfWord
+}
+
 
 # ::tk::TextNextPos --
 # Returns the index of the next position after the given starting
@@ -1163,4 +1199,97 @@ proc ::tk::TextScanDrag {w x y} {
     if {[info exists Priv(mouseMoved)] && $Priv(mouseMoved)} {
 	$w scan dragto $x $y
     }
+}
+# ::tk::TextUndoRedoProcessMarks --
+#
+# This proc is executed after an undo or redo action.
+# It processes the list of undo/redo marks temporarily set in the
+# text widget to positions delimiting where changes happened, and
+# returns a flat list of ranges. The temporary marks are removed
+# from the text widget.
+#
+# Arguments:
+# w -	The text widget
+
+proc ::tk::TextUndoRedoProcessMarks {w} {
+    set indices {}
+    set undoMarks {}
+
+    # only consider the temporary marks set by an undo/redo action
+    foreach mark [$w mark names] {
+	if {[string range $mark 0 11] eq "tk::undoMark"} {
+	    lappend undoMarks $mark
+	}
+    }
+
+    # transform marks into indices
+    # the number of undo/redo marks is always even, each right mark
+    # completes a left mark to give a range
+    # this is true because:
+    #   - undo/redo only deals with insertions and deletions of text
+    #   - insertions may move marks but not delete them
+    #   - when deleting text, marks located inside the deleted range
+    #     are not erased but moved to the start of the deletion range
+    #         . this is done in TkBTreeDeleteIndexRange ("This segment
+    #           refuses to die...")
+    #         . because MarkDeleteProc does nothing else than returning
+    #           a value indicating that marks are not deleted by this
+    #           deleteProc
+    #         . mark deletion rather happen through [.text mark unset xxx]
+    #           which was not used _up to this point of the code_ (it
+    #           is a bit later just before exiting the present proc)
+    set nUndoMarks [llength $undoMarks]
+    set n [expr {$nUndoMarks / 2}]
+    set undoMarks [lsort -dictionary $undoMarks]
+    if {$n > 0} {
+	set Lmarks [lrange $undoMarks 0 [expr {$n - 1}]]
+    } else {
+	set Lmarks {}
+    }
+    set Rmarks [lrange $undoMarks $n [llength $undoMarks]]
+    foreach Lmark $Lmarks Rmark $Rmarks {
+	lappend indices [$w index $Lmark] [$w index $Rmark]
+	$w mark unset $Lmark $Rmark
+    }
+
+    # process ranges to:
+    #   - remove those already fully included in another range
+    #   - merge overlapping ranges
+    set ind [lsort -dictionary -stride 2 $indices]
+    set indices {}
+
+    for {set i 0} {$i < $nUndoMarks} {incr i 2} {
+	set il1 [lindex $ind $i]
+	set ir1 [lindex $ind [expr {$i + 1}]]
+	lappend indices $il1 $ir1
+
+	for {set j [expr {$i + 2}]} {$j < $nUndoMarks} {incr j 2} {
+	    set il2 [lindex $ind $j]
+	    set ir2 [lindex $ind [expr {$j + 1}]]
+
+	    if {[$w compare $il2 > $ir1]} {
+		# second range starts after the end of first range
+		# -> further second ranges do not need to be considered
+		#    because ranges were sorted by increasing first index
+		set j $nUndoMarks
+	    } else {
+		if {[$w compare $ir2 > $ir1]} {
+		    # second range overlaps first range
+		    # -> merge them into a single range
+		    set indices [lreplace $indices end-1 end]
+		    lappend indices $il1 $ir2
+		} else {
+		    # second range is fully included in first range
+		    # -> ignore it
+		}
+		# in both cases above, the second range shall be
+		# trimmed out from the list of ranges
+		set ind [lreplace $ind $j [expr {$j + 1}]]
+		incr j -2
+		incr nUndoMarks -2
+	    }
+	}
+    }
+
+    return $indices
 }

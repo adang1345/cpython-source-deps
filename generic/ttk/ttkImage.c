@@ -1,8 +1,8 @@
 /*
  *	Image specifications and image element factory.
  *
- * Copyright (C) 2004 Pat Thoyts <patthoyts@users.sf.net>
- * Copyright (C) 2004 Joe English
+ * Copyright © 2004 Pat Thoyts <patthoyts@users.sf.net>
+ * Copyright © 2004 Joe English
  *
  * An imageSpec is a multi-element list; the first element
  * is the name of the default image to use, the remainder of the
@@ -10,8 +10,7 @@
  * [style map].
  */
 
-#include <string.h>
-#include <tk.h>
+#include "tkInt.h"
 #include "ttkTheme.h"
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
@@ -21,37 +20,76 @@
  */
 
 struct TtkImageSpec {
-    Tk_Image 		baseImage;	/* Base image to use */
-    int 		mapCount;	/* #state-specific overrides */
+    Tk_Image		baseImage;	/* Base image to use */
+    int		mapCount;	/* #state-specific overrides */
     Ttk_StateSpec	*states;	/* array[mapCount] of states ... */
     Tk_Image		*images;	/* ... per-state images to use */
+    Tk_ImageChangedProc *imageChanged;
+    void		*imageChangedClientData;
 };
 
 /* NullImageChanged --
- * 	Do-nothing Tk_ImageChangedProc.
+ *	Do-nothing Tk_ImageChangedProc.
  */
-static void NullImageChanged(ClientData clientData,
+static void NullImageChanged(
+    TCL_UNUSED(void *),
+    TCL_UNUSED(int),
+    TCL_UNUSED(int),
+    TCL_UNUSED(int),
+    TCL_UNUSED(int),
+    TCL_UNUSED(int),
+    TCL_UNUSED(int))
+{
+    /* No-op */
+}
+
+/* ImageSpecImageChanged --
+ *     Image changes should trigger a repaint.
+ */
+static void ImageSpecImageChanged(void *clientData,
     int x, int y, int width, int height, int imageWidth, int imageHeight)
-{ /* No-op */ }
+{
+    Ttk_ImageSpec *imageSpec = (Ttk_ImageSpec *)clientData;
+    if (imageSpec->imageChanged != NULL) {
+	imageSpec->imageChanged(imageSpec->imageChangedClientData,
+		x, y, width, height,
+		imageWidth, imageHeight);
+    }
+}
 
 /* TtkGetImageSpec --
- * 	Constructs a Ttk_ImageSpec * from a Tcl_Obj *.
- * 	Result must be released using TtkFreeImageSpec.
+ *	Constructs a Ttk_ImageSpec * from a Tcl_Obj *.
+ *	Result must be released using TtkFreeImageSpec.
  *
- * TODO: Need a variant of this that takes a user-specified ImageChanged proc
  */
 Ttk_ImageSpec *
 TtkGetImageSpec(Tcl_Interp *interp, Tk_Window tkwin, Tcl_Obj *objPtr)
 {
+    return TtkGetImageSpecEx(interp, tkwin, objPtr, NULL, NULL);
+}
+
+/* TtkGetImageSpecEx --
+ *	Constructs a Ttk_ImageSpec * from a Tcl_Obj *.
+ *	Result must be released using TtkFreeImageSpec.
+ *	imageChangedProc will be called when not NULL when
+ *	the image changes to allow widgets to repaint.
+ */
+Ttk_ImageSpec *
+TtkGetImageSpecEx(Tcl_Interp *interp, Tk_Window tkwin, Tcl_Obj *objPtr,
+    Tk_ImageChangedProc *imageChangedProc, void *imageChangedClientData)
+{
     Ttk_ImageSpec *imageSpec = 0;
-    int i = 0, n = 0, objc;
+    int i = 0, n = 0;
+    Tcl_Size objc;
     Tcl_Obj **objv;
 
-    imageSpec = ckalloc(sizeof(*imageSpec));
+    imageSpec = (Ttk_ImageSpec *)ckalloc(sizeof(*imageSpec));
     imageSpec->baseImage = 0;
     imageSpec->mapCount = 0;
     imageSpec->states = 0;
     imageSpec->images = 0;
+    imageSpec->imageChanged = imageChangedProc;
+    imageSpec->imageChangedClientData = imageChangedClientData;
 
     if (Tcl_ListObjGetElements(interp, objPtr, &objc, &objv) != TCL_OK) {
 	goto error;
@@ -62,21 +100,21 @@ TtkGetImageSpec(Tcl_Interp *interp, Tk_Window tkwin, Tcl_Obj *objPtr)
 	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
 		"image specification must contain an odd number of elements",
 		-1));
-	    Tcl_SetErrorCode(interp, "TTK", "IMAGE", "SPEC", NULL);
+	    Tcl_SetErrorCode(interp, "TTK", "IMAGE", "SPEC", (char *)NULL);
 	}
 	goto error;
     }
 
     n = (objc - 1) / 2;
-    imageSpec->states = ckalloc(n * sizeof(Ttk_StateSpec));
-    imageSpec->images = ckalloc(n * sizeof(Tk_Image *));
+    imageSpec->states = (Ttk_StateSpec *)ckalloc(n * sizeof(Ttk_StateSpec));
+    imageSpec->images = (Tk_Image *)ckalloc(n * sizeof(Tk_Image));
 
     /* Get base image:
     */
     imageSpec->baseImage = Tk_GetImage(
-	    interp, tkwin, Tcl_GetString(objv[0]), NullImageChanged, NULL);
+	    interp, tkwin, Tcl_GetString(objv[0]), ImageSpecImageChanged, imageSpec);
     if (!imageSpec->baseImage) {
-    	goto error;
+	goto error;
     }
 
     /* Extract state and image specifications:
@@ -107,7 +145,7 @@ error:
 }
 
 /* TtkFreeImageSpec --
- * 	Dispose of an image specification.
+ *	Dispose of an image specification.
  */
 void TtkFreeImageSpec(Ttk_ImageSpec *imageSpec)
 {
@@ -125,9 +163,12 @@ void TtkFreeImageSpec(Ttk_ImageSpec *imageSpec)
 }
 
 /* TtkSelectImage --
- * 	Return a state-specific image from an ImageSpec
+ *	Return a state-specific image from an ImageSpec
  */
-Tk_Image TtkSelectImage(Ttk_ImageSpec *imageSpec, Ttk_State state)
+Tk_Image TtkSelectImage(
+    Ttk_ImageSpec *imageSpec,
+    TCL_UNUSED(Tk_Window),
+    Ttk_State state)
 {
     int i;
     for (i = 0; i < imageSpec->mapCount; ++i) {
@@ -143,7 +184,7 @@ Tk_Image TtkSelectImage(Ttk_ImageSpec *imageSpec, Ttk_State state)
  */
 
 /* LPadding, CPadding, RPadding --
- * 	Split a box+padding pair into left, center, and right boxes.
+ *	Split a box+padding pair into left, center, and right boxes.
  */
 static Ttk_Box LPadding(Ttk_Box b, Ttk_Padding p)
     { return Ttk_MakeBox(b.x, b.y, p.left, b.height); }
@@ -155,7 +196,7 @@ static Ttk_Box RPadding(Ttk_Box b, Ttk_Padding p)
     { return  Ttk_MakeBox(b.x+b.width-p.right, b.y, p.right, b.height); }
 
 /* TPadding, MPadding, BPadding --
- * 	Split a box+padding pair into top, middle, and bottom parts.
+ *	Split a box+padding pair into top, middle, and bottom parts.
  */
 static Ttk_Box TPadding(Ttk_Box b, Ttk_Padding p)
     { return Ttk_MakeBox(b.x, b.y, b.width, p.top); }
@@ -171,14 +212,19 @@ static Ttk_Box BPadding(Ttk_Box b, Ttk_Padding p)
  *	the source area of the image.
  */
 static void Ttk_Fill(
-    Tk_Window tkwin, Drawable d, Tk_Image image, Ttk_Box src, Ttk_Box dst)
+    TCL_UNUSED(Tk_Window),
+    Drawable d,
+    Tk_Image image,
+    Ttk_Box src,
+    Ttk_Box dst)
 {
     int dr = dst.x + dst.width;
     int db = dst.y + dst.height;
     int x,y;
 
-    if (!(src.width && src.height && dst.width && dst.height))
+    if (!(src.width && src.height && dst.width && dst.height)) {
 	return;
+    }
 
     for (x = dst.x; x < dr; x += src.width) {
 	int cw = MIN(src.width, dr - x);
@@ -190,7 +236,7 @@ static void Ttk_Fill(
 }
 
 /* Ttk_Stripe --
- * 	Fill a horizontal stripe of the destination drawable.
+ *	Fill a horizontal stripe of the destination drawable.
  */
 static void Ttk_Stripe(
     Tk_Window tkwin, Drawable d, Tk_Image image,
@@ -202,7 +248,7 @@ static void Ttk_Stripe(
 }
 
 /* Ttk_Tile --
- * 	Fill successive horizontal stripes of the destination drawable.
+ *	Fill successive horizontal stripes of the destination drawable.
  */
 static void Ttk_Tile(
     Tk_Window tkwin, Drawable d, Tk_Image image,
@@ -220,12 +266,12 @@ static void Ttk_Tile(
 typedef struct {		/* ClientData for image elements */
     Ttk_ImageSpec *imageSpec;	/* Image(s) to use */
     int minWidth;		/* Minimum width; overrides image width */
-    int minHeight;		/* Minimum width; overrides image width */
+    int minHeight;		/* Minimum height; overrides image height */
     Ttk_Sticky sticky;		/* -stickiness specification */
     Ttk_Padding border;		/* Fixed border region */
     Ttk_Padding padding;	/* Internal padding */
 
-#if TILE_07_COMPAT
+#ifdef TILE_07_COMPAT
     Ttk_ResourceCache cache;	/* Resource cache for images */
     Ttk_StateMap imageMap;	/* State-based lookup table for images */
 #endif
@@ -233,19 +279,23 @@ typedef struct {		/* ClientData for image elements */
 
 static void FreeImageData(void *clientData)
 {
-    ImageData *imageData = clientData;
+    ImageData *imageData = (ImageData *)clientData;
     if (imageData->imageSpec)	{ TtkFreeImageSpec(imageData->imageSpec); }
-#if TILE_07_COMPAT
+#ifdef TILE_07_COMPAT
     if (imageData->imageMap)	{ Tcl_DecrRefCount(imageData->imageMap); }
 #endif
     ckfree(clientData);
 }
 
 static void ImageElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    void *clientData,
+    TCL_UNUSED(void *), /* elementRecord */
+    TCL_UNUSED(Tk_Window),
+    int *widthPtr,
+    int *heightPtr,
+    Ttk_Padding *paddingPtr)
 {
-    ImageData *imageData = clientData;
+    ImageData *imageData = (ImageData *)clientData;
     Tk_Image image = imageData->imageSpec->baseImage;
 
     if (image) {
@@ -262,15 +312,19 @@ static void ImageElementSize(
 }
 
 static void ImageElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    void *clientData,
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
 {
-    ImageData *imageData = clientData;
+    ImageData *imageData = (ImageData *)clientData;
     Tk_Image image = 0;
     int imgWidth, imgHeight;
     Ttk_Box src, dst;
 
-#if TILE_07_COMPAT
+#ifdef TILE_07_COMPAT
     if (imageData->imageMap) {
 	Tcl_Obj *imageObj = Ttk_StateMapLookup(NULL,imageData->imageMap,state);
 	if (imageObj) {
@@ -278,10 +332,10 @@ static void ImageElementDraw(
 	}
     }
     if (!image) {
-	image = TtkSelectImage(imageData->imageSpec, state);
+	image = TtkSelectImage(imageData->imageSpec, tkwin, state);
     }
 #else
-    image = TtkSelectImage(imageData->imageSpec, state);
+    image = TtkSelectImage(imageData->imageSpec, tkwin, state);
 #endif
 
     if (!image) {
@@ -295,7 +349,7 @@ static void ImageElementDraw(
     Ttk_Tile(tkwin, d, image, src, dst, imageData->border);
 }
 
-static Ttk_ElementSpec ImageElementSpec =
+static const Ttk_ElementSpec ImageElementSpec =
 {
     TK_STYLE_VERSION_2,
     sizeof(NullElement),
@@ -310,24 +364,24 @@ static Ttk_ElementSpec ImageElementSpec =
 static int
 Ttk_CreateImageElement(
     Tcl_Interp *interp,
-    void *clientData,
+    TCL_UNUSED(void *),
     Ttk_Theme theme,
     const char *elementName,
-    int objc, Tcl_Obj *const objv[])
+    Tcl_Size objc, Tcl_Obj *const objv[])
 {
-    static const char *optionStrings[] =
+    static const char *const optionStrings[] =
 	 { "-border","-height","-padding","-sticky","-width",NULL };
     enum { O_BORDER, O_HEIGHT, O_PADDING, O_STICKY, O_WIDTH };
 
     Ttk_ImageSpec *imageSpec = 0;
     ImageData *imageData = 0;
     int padding_specified = 0;
-    int i;
+    Tcl_Size i;
 
-    if (objc <= 0) {
+    if (objc + 1 < 2) {
 	Tcl_SetObjResult(interp, Tcl_NewStringObj(
 		"Must supply a base image", -1));
-	Tcl_SetErrorCode(interp, "TTK", "IMAGE", "BASE", NULL);
+	Tcl_SetErrorCode(interp, "TTK", "IMAGE", "BASE", (char *)NULL);
 	return TCL_ERROR;
     }
 
@@ -336,12 +390,12 @@ Ttk_CreateImageElement(
 	return TCL_ERROR;
     }
 
-    imageData = ckalloc(sizeof(*imageData));
+    imageData = (ImageData *)ckalloc(sizeof(*imageData));
     imageData->imageSpec = imageSpec;
     imageData->minWidth = imageData->minHeight = -1;
     imageData->sticky = TTK_FILL_BOTH;
     imageData->border = imageData->padding = Ttk_UniformPadding(0);
-#if TILE_07_COMPAT
+#ifdef TILE_07_COMPAT
     imageData->cache = Ttk_GetResourceCache(interp);
     imageData->imageMap = 0;
 #endif
@@ -352,11 +406,11 @@ Ttk_CreateImageElement(
 	if (i == objc - 1) {
 	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 		    "Value for %s missing", Tcl_GetString(objv[i])));
-	    Tcl_SetErrorCode(interp, "TTK", "IMAGE", "VALUE", NULL);
+	    Tcl_SetErrorCode(interp, "TTK", "IMAGE", "VALUE", (char *)NULL);
 	    goto error;
 	}
 
-#if TILE_07_COMPAT
+#ifdef TILE_07_COMPAT
 	if (!strcmp("-map", Tcl_GetString(objv[i]))) {
 	    imageData->imageMap = objv[i+1];
 	    Tcl_IncrRefCount(imageData->imageMap);
@@ -413,8 +467,8 @@ error:
     return TCL_ERROR;
 }
 
-MODULE_SCOPE
-void TtkImage_Init(Tcl_Interp *interp)
+MODULE_SCOPE void
+TtkImage_Init(Tcl_Interp *interp)
 {
     Ttk_RegisterElementFactory(interp, "image", Ttk_CreateImageElement, NULL);
 }

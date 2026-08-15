@@ -4,8 +4,8 @@
  *	This file contains the functions that implement marks for text
  *	widgets.
  *
- * Copyright (c) 1994 The Regents of the University of California.
- * Copyright (c) 1994-1997 Sun Microsystems, Inc.
+ * Copyright © 1994 The Regents of the University of California.
+ * Copyright © 1994-1997 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -19,8 +19,8 @@
  * Macro that determines the size of a mark segment:
  */
 
-#define MSEG_SIZE ((unsigned) (Tk_Offset(TkTextSegment, body) \
-	+ sizeof(TkTextMark)))
+#define MSEG_SIZE (offsetof(TkTextSegment, body) \
+	+ sizeof(TkTextMark))
 
 /*
  * Forward references for functions defined in this file:
@@ -36,8 +36,8 @@ static TkTextSegment *	MarkCleanupProc(TkTextSegment *segPtr,
 static void		MarkCheckProc(TkTextSegment *segPtr,
 			    TkTextLine *linePtr);
 static int		MarkLayoutProc(TkText *textPtr, TkTextIndex *indexPtr,
-			    TkTextSegment *segPtr, int offset, int maxX,
-			    int maxChars, int noCharsYet, TkWrapMode wrapMode,
+			    TkTextSegment *segPtr, Tcl_Size offset, int maxX,
+			    Tcl_Size maxChars, int noCharsYet, TkWrapMode wrapMode,
 			    TkTextDispChunk *chunkPtr);
 static int		MarkFindNext(Tcl_Interp *interp,
 			    TkText *textPtr, Tcl_Obj *markName);
@@ -93,9 +93,9 @@ const Tk_SegType tkTextLeftMarkType = {
 
 int
 TkTextMarkCmd(
-    register TkText *textPtr,	/* Information about text widget. */
+    TkText *textPtr,	/* Information about text widget. */
     Tcl_Interp *interp,		/* Current interpreter. */
-    int objc,			/* Number of arguments. */
+    Tcl_Size objc,			/* Number of arguments. */
     Tcl_Obj *const objv[])	/* Argument objects. Someone else has already
 				 * parsed this command enough to know that
 				 * objv[1] is "mark". */
@@ -114,7 +114,7 @@ TkTextMarkCmd(
 	MARK_UNSET
     };
 
-    if (objc < 3) {
+    if (objc + 1 < 4) {
 	Tcl_WrongNumArgs(interp, 2, objv, "option ?arg ...?");
 	return TCL_ERROR;
     }
@@ -126,7 +126,7 @@ TkTextMarkCmd(
     switch ((enum markOptions) optionIndex) {
     case MARK_GRAVITY: {
 	char c;
-	int length;
+	Tcl_Size length;
 	const char *str;
 
 	if (objc < 4 || objc > 5) {
@@ -144,10 +144,10 @@ TkTextMarkCmd(
 		Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 			"there is no mark named \"%s\"", str));
 		Tcl_SetErrorCode(interp, "TK", "LOOKUP", "TEXT_MARK", str,
-			NULL);
+			(char *)NULL);
 		return TCL_ERROR;
 	    }
-	    markPtr = Tcl_GetHashValue(hPtr);
+	    markPtr = (TkTextSegment *)Tcl_GetHashValue(hPtr);
 	}
 	if (objc == 4) {
 	    const char *typeStr;
@@ -157,20 +157,20 @@ TkTextMarkCmd(
 	    } else {
 		typeStr = "left";
 	    }
-	    Tcl_SetObjResult(interp, Tcl_NewStringObj(typeStr, -1));
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(typeStr, TCL_INDEX_NONE));
 	    return TCL_OK;
 	}
 	str = Tcl_GetStringFromObj(objv[4],&length);
 	c = str[0];
-	if ((c == 'l') && (strncmp(str, "left", (unsigned) length) == 0)) {
+	if ((c == 'l') && (strncmp(str, "left", length) == 0)) {
 	    newTypePtr = &tkTextLeftMarkType;
 	} else if ((c == 'r') &&
-		(strncmp(str, "right", (unsigned) length) == 0)) {
+		(strncmp(str, "right", length) == 0)) {
 	    newTypePtr = &tkTextRightMarkType;
 	} else {
 	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 		    "bad mark gravity \"%s\": must be left or right", str));
-	    Tcl_SetErrorCode(interp, "TK", "VALUE", "MARK_GRAVITY", NULL);
+	    Tcl_SetErrorCode(interp, "TK", "VALUE", "MARK_GRAVITY", (char *)NULL);
 	    return TCL_ERROR;
 	}
 	TkTextMarkSegToIndex(textPtr, markPtr, &index);
@@ -188,13 +188,13 @@ TkTextMarkCmd(
 	}
 	resultObj = Tcl_NewObj();
 	Tcl_ListObjAppendElement(NULL, resultObj, Tcl_NewStringObj(
-		"insert", -1));
+		"insert", TCL_INDEX_NONE));
 	Tcl_ListObjAppendElement(NULL, resultObj, Tcl_NewStringObj(
-		"current", -1));
+		"current", TCL_INDEX_NONE));
 	for (hPtr = Tcl_FirstHashEntry(&textPtr->sharedTextPtr->markTable,
 		&search); hPtr != NULL; hPtr = Tcl_NextHashEntry(&search)) {
 	    Tcl_ListObjAppendElement(NULL, resultObj, Tcl_NewStringObj(
-		    Tcl_GetHashKey(&textPtr->sharedTextPtr->markTable, hPtr),
+		    (const char *)Tcl_GetHashKey(&textPtr->sharedTextPtr->markTable, hPtr),
 		    -1));
 	}
 	Tcl_SetObjResult(interp, resultObj);
@@ -223,13 +223,13 @@ TkTextMarkCmd(
 	TkTextSetMark(textPtr, Tcl_GetString(objv[3]), &index);
 	return TCL_OK;
     case MARK_UNSET: {
-	int i;
+	Tcl_Size i;
 
 	for (i = 3; i < objc; i++) {
 	    hPtr = Tcl_FindHashEntry(&textPtr->sharedTextPtr->markTable,
 		    Tcl_GetString(objv[i]));
 	    if (hPtr != NULL) {
-		markPtr = Tcl_GetHashValue(hPtr);
+		markPtr = (TkTextSegment *)Tcl_GetHashValue(hPtr);
 
 		/*
 		 * Special case not needed with peer widgets.
@@ -290,7 +290,7 @@ TkTextSetMark(
 	widgetSpecific = 0;
 	hPtr = Tcl_CreateHashEntry(&textPtr->sharedTextPtr->markTable, name,
 		&isNew);
-	markPtr = Tcl_GetHashValue(hPtr);
+	markPtr = (TkTextSegment *)Tcl_GetHashValue(hPtr);
     }
     if (!isNew) {
 	/*
@@ -301,7 +301,7 @@ TkTextSetMark(
 
 	if (markPtr == textPtr->insertMarkPtr) {
 	    TkTextIndex index, index2;
-            int nblines;
+	    int nblines;
 
 	    TkTextMarkSegToIndex(textPtr, textPtr->insertMarkPtr, &index);
 	    TkTextIndexForwChars(NULL, &index, 1, &index2, COUNT_INDICES);
@@ -313,12 +313,12 @@ TkTextSetMark(
 
 	    TkTextChanged(NULL, textPtr, &index, &index2);
 
-            /*
-             * The number of lines in the widget is zero if and only if it is
-             * a partial peer with -startline == -endline, i.e. an empty
-             * peer. In this case the mark shall be set exactly at the given
-             * index, and not one character backwards (bug 3487407).
-             */
+	    /*
+	     * The number of lines in the widget is zero if and only if it is
+	     * a partial peer with -startline == -endline, i.e. an empty
+	     * peer. In this case the mark shall be set exactly at the given
+	     * index, and not one character backwards (bug 3487407).
+	     */
 
 	    nblines = TkBTreeNumLines(textPtr->sharedTextPtr->tree, textPtr);
 	    if ((TkBTreeLinesTo(textPtr, indexPtr->linePtr) == nblines)
@@ -330,7 +330,7 @@ TkTextSetMark(
 	}
 	TkBTreeUnlinkSegment(markPtr, markPtr->body.mark.linePtr);
     } else {
-	markPtr = ckalloc(MSEG_SIZE);
+	markPtr = (TkTextSegment *)ckalloc(MSEG_SIZE);
 	markPtr->typePtr = &tkTextRightMarkType;
 	markPtr->size = 0;
 	markPtr->body.mark.textPtr = textPtr;
@@ -411,10 +411,10 @@ TkTextMarkSegToIndex(
  *
  * Results:
  *	The return value is TCL_OK if "name" exists as a mark in the text
- *	widget and is located within its -starline/-endline range. In this
+ *	widget and is located within its -startline/-endline range. In this
  *	case *indexPtr is filled in with the next segment who is after the
  *	mark whose size is non-zero. TCL_ERROR is returned if the mark
- *	doesn't exist in the text widget, or if it is out of its -starline/
+ *	doesn't exist in the text widget, or if it is out of its -startline/
  *	-endline range. In this latter case *indexPtr still contains valid
  *	information, in particular TkTextMarkNameToIndex called with the
  *	"insert" or "current" mark name may return TCL_ERROR, but *indexPtr
@@ -434,11 +434,9 @@ TkTextMarkNameToIndex(
     TkTextIndex *indexPtr)	/* Index information gets stored here. */
 {
     TkTextSegment *segPtr;
-    TkTextIndex index;
-    int start, end;
 
     if (textPtr == NULL) {
-        return TCL_ERROR;
+	return TCL_ERROR;
     }
 
     if (!strcmp(name, "insert")) {
@@ -452,32 +450,21 @@ TkTextMarkNameToIndex(
 	if (hPtr == NULL) {
 	    return TCL_ERROR;
 	}
-	segPtr = Tcl_GetHashValue(hPtr);
+	segPtr = (TkTextSegment *)Tcl_GetHashValue(hPtr);
     }
     TkTextMarkSegToIndex(textPtr, segPtr, indexPtr);
 
-    /* If indexPtr refers to somewhere outside the -startline/-endline
+    /*
+     * If indexPtr refers to somewhere outside the -startline/-endline
      * range limits of the widget, error out since the mark indeed is not
      * reachable from this text widget (it may be reachable from a peer)
      * (bug 1630271).
      */
 
-    if (textPtr->start != NULL) {
-	start = TkBTreeLinesTo(NULL, textPtr->start);
-	TkTextMakeByteIndex(textPtr->sharedTextPtr->tree, NULL, start, 0,
-		&index);
-	if (TkTextIndexCmp(indexPtr, &index) < 0) {
-	    return TCL_ERROR;
-	}
+    if (TkTextIndexAdjustToStartEnd(textPtr, indexPtr, 1) == TCL_ERROR) {
+	return TCL_ERROR;
     }
-    if (textPtr->end != NULL) {
-	end = TkBTreeLinesTo(NULL, textPtr->end);
-	TkTextMakeByteIndex(textPtr->sharedTextPtr->tree, NULL, end, 0,
-		&index);
-	if (TkTextIndexCmp(indexPtr, &index) > 0) {
-	    return TCL_ERROR;
-	}
-    }
+
     return TCL_OK;
 }
 
@@ -499,12 +486,11 @@ TkTextMarkNameToIndex(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static int
 MarkDeleteProc(
-    TkTextSegment *segPtr,	/* Segment being deleted. */
-    TkTextLine *linePtr,	/* Line containing segment. */
-    int treeGone)		/* Non-zero means the entire tree is being
+    TCL_UNUSED(TkTextSegment *),	/* Segment being deleted. */
+    TCL_UNUSED(TkTextLine *),	/* Line containing segment. */
+    TCL_UNUSED(int))		/* Non-zero means the entire tree is being
 				 * deleted, so everything must get cleaned
 				 * up. */
 {
@@ -559,18 +545,18 @@ MarkCleanupProc(
 static int
 MarkLayoutProc(
     TkText *textPtr,		/* Text widget being layed out. */
-    TkTextIndex *indexPtr,	/* Identifies first character in chunk. */
+    TCL_UNUSED(TkTextIndex *),	/* Identifies first character in chunk. */
     TkTextSegment *segPtr,	/* Segment corresponding to indexPtr. */
-    int offset,			/* Offset within segPtr corresponding to
+    TCL_UNUSED(Tcl_Size),		/* Offset within segPtr corresponding to
 				 * indexPtr (always 0). */
-    int maxX,			/* Chunk must not occupy pixels at this
+    TCL_UNUSED(int),			/* Chunk must not occupy pixels at this
 				 * position or higher. */
-    int maxChars,		/* Chunk must not include more than this many
+    TCL_UNUSED(Tcl_Size),		/* Chunk must not include more than this many
 				 * characters. */
-    int noCharsYet,		/* Non-zero means no characters have been
+    TCL_UNUSED(int),		/* Non-zero means no characters have been
 				 * assigned to this line yet. */
-    TkWrapMode wrapMode,	/* Not used. */
-    register TkTextDispChunk *chunkPtr)
+    TCL_UNUSED(TkWrapMode),	/* Not used. */
+    TkTextDispChunk *chunkPtr)
 				/* Structure to fill in with information about
 				 * this chunk. The x field has already been
 				 * set by the caller. */
@@ -615,19 +601,18 @@ MarkLayoutProc(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 void
 TkTextInsertDisplayProc(
     TkText *textPtr,		/* The current text widget. */
-    TkTextDispChunk *chunkPtr,	/* Chunk that is to be drawn. */
+    TCL_UNUSED(TkTextDispChunk *),	/* Chunk that is to be drawn. */
     int x,			/* X-position in dst at which to draw this
 				 * chunk (may differ from the x-position in
 				 * the chunk because of scrolling). */
     int y,			/* Y-position at which to draw this chunk in
 				 * dst (x-position is in the chunk itself). */
     int height,			/* Total height of line. */
-    int baseline,		/* Offset of baseline from y. */
-    Display *display,		/* Display to use for drawing. */
+    TCL_UNUSED(int),		/* Offset of baseline from y. */
+    TCL_UNUSED(Display *),		/* Display to use for drawing. */
     Drawable dst,		/* Pixmap or window in which to draw chunk. */
     int screenY)		/* Y-coordinate in text window that
 				 * corresponds to y. */
@@ -638,14 +623,19 @@ TkTextInsertDisplayProc(
 
     /* TkText *textPtr = chunkPtr->clientData; */
     TkTextIndex index;
-    int halfWidth = textPtr->insertWidth/2;
+    int halfWidth, insertWidth, insertBorderWidth;
     int rightSideWidth;
-    int ix = 0, iy = 0, iw = 0, ih = 0, charWidth = 0;
+    int ix = 0, iy = 0, iw = 0, ih = 0, charWidth = 0, cursorWidth = 0;
 
+    Tk_GetPixelsFromObj(NULL, textPtr->tkwin, textPtr->insertWidthObj, &insertWidth);
+    Tk_GetPixelsFromObj(NULL, textPtr->tkwin, textPtr->insertBorderWidthObj, &insertBorderWidth);
+    halfWidth = insertWidth/2;
     if (textPtr->insertCursorType) {
 	TkTextMarkSegToIndex(textPtr, textPtr->insertMarkPtr, &index);
-	TkTextIndexBbox(textPtr, &index, &ix, &iy, &iw, &ih, &charWidth);
+	TkTextIndexBbox(textPtr, &index, &ix, &iy, &iw, &ih, &charWidth,
+		&cursorWidth);
 	rightSideWidth = charWidth + halfWidth;
+	charWidth = cursorWidth;
     } else {
 	rightSideWidth = halfWidth;
     }
@@ -673,15 +663,19 @@ TkTextInsertDisplayProc(
     if (textPtr->flags & GOT_FOCUS) {
 	if (textPtr->flags & INSERT_ON) {
 	    Tk_Fill3DRectangle(textPtr->tkwin, dst, textPtr->insertBorder,
-		    x - halfWidth, y, charWidth + textPtr->insertWidth,
-		    height, textPtr->insertBorderWidth, TK_RELIEF_RAISED);
+		    x - halfWidth, y, charWidth + insertWidth,
+		    height, insertBorderWidth, TK_RELIEF_RAISED);
 	} else if (textPtr->selBorder == textPtr->insertBorder) {
 	    Tk_Fill3DRectangle(textPtr->tkwin, dst, textPtr->border,
-		    x - halfWidth, y, charWidth + textPtr->insertWidth,
+		    x - halfWidth, y, charWidth + insertWidth,
 		    height, 0, TK_RELIEF_FLAT);
 	}
     } else if (textPtr->insertUnfocussed == TK_TEXT_INSERT_NOFOCUS_HOLLOW) {
-	if (textPtr->insertBorderWidth < 1) {
+	if (insertBorderWidth > 0) {
+	    Tk_Draw3DRectangle(textPtr->tkwin, dst, textPtr->insertBorder,
+		    x - halfWidth, y, charWidth + insertWidth,
+		    height, insertBorderWidth, TK_RELIEF_RAISED);
+	} else {
 	    /*
 	     * Hack to work around the fact that a "solid" border always
 	     * paints in black.
@@ -690,17 +684,13 @@ TkTextInsertDisplayProc(
 	    TkBorder *borderPtr = (TkBorder *) textPtr->insertBorder;
 
 	    XDrawRectangle(Tk_Display(textPtr->tkwin), dst, borderPtr->bgGC,
-		    x - halfWidth, y, charWidth + textPtr->insertWidth - 1,
+		    x - halfWidth, y, charWidth + insertWidth - 1,
 		    height - 1);
-	} else {
-	    Tk_Draw3DRectangle(textPtr->tkwin, dst, textPtr->insertBorder,
-		    x - halfWidth, y, charWidth + textPtr->insertWidth,
-		    height, textPtr->insertBorderWidth, TK_RELIEF_RAISED);
 	}
     } else if (textPtr->insertUnfocussed == TK_TEXT_INSERT_NOFOCUS_SOLID) {
 	Tk_Fill3DRectangle(textPtr->tkwin, dst, textPtr->insertBorder,
-		x - halfWidth, y, charWidth + textPtr->insertWidth, height,
-		textPtr->insertBorderWidth, TK_RELIEF_RAISED);
+		x - halfWidth, y, charWidth + insertWidth, height,
+		insertBorderWidth, TK_RELIEF_RAISED);
     }
 }
 
@@ -721,11 +711,10 @@ TkTextInsertDisplayProc(
  *--------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 static void
 InsertUndisplayProc(
-    TkText *textPtr,		/* Overall information about text widget. */
-    TkTextDispChunk *chunkPtr)	/* Chunk that is about to be freed. */
+    TCL_UNUSED(TkText *),		/* Overall information about text widget. */
+    TCL_UNUSED(TkTextDispChunk *))	/* Chunk that is about to be freed. */
 {
     return;
 }
@@ -765,7 +754,7 @@ MarkCheckProc(
      */
 
     if (markPtr->body.mark.textPtr->insertMarkPtr == markPtr) {
-        return;
+	return;
     }
     if (markPtr->body.mark.textPtr->currentMarkPtr == markPtr) {
 	return;
@@ -809,7 +798,7 @@ MarkFindNext(
 {
     TkTextIndex index;
     Tcl_HashEntry *hPtr;
-    register TkTextSegment *segPtr;
+    TkTextSegment *segPtr;
     int offset;
     const char *string = Tcl_GetString(obj);
 
@@ -830,7 +819,7 @@ MarkFindNext(
 	     * position.
 	     */
 
-	    segPtr = Tcl_GetHashValue(hPtr);
+	    segPtr = (TkTextSegment *)Tcl_GetHashValue(hPtr);
 	    TkTextMarkSegToIndex(textPtr, segPtr, &index);
 	    segPtr = segPtr->nextPtr;
 	} else {
@@ -900,7 +889,7 @@ MarkFindPrev(
 {
     TkTextIndex index;
     Tcl_HashEntry *hPtr;
-    register TkTextSegment *segPtr, *seg2Ptr, *prevPtr;
+    TkTextSegment *segPtr, *seg2Ptr, *prevPtr;
     int offset;
     const char *string = Tcl_GetString(obj);
 
@@ -919,7 +908,7 @@ MarkFindPrev(
 	     * position.
 	     */
 
-	    segPtr = Tcl_GetHashValue(hPtr);
+	    segPtr = (TkTextSegment *)Tcl_GetHashValue(hPtr);
 	    TkTextMarkSegToIndex(textPtr, segPtr, &index);
 	} else {
 	    /*
@@ -949,16 +938,16 @@ MarkFindPrev(
 		seg2Ptr = seg2Ptr->nextPtr) {
 	    if (seg2Ptr->typePtr == &tkTextRightMarkType ||
 		    seg2Ptr->typePtr == &tkTextLeftMarkType) {
-	        if (seg2Ptr->body.mark.hPtr == NULL) {
-                    if (seg2Ptr != textPtr->currentMarkPtr &&
-                            seg2Ptr != textPtr->insertMarkPtr) {
-	                /*
-                         * This is an insert or current mark from a
-                         * peer of textPtr.
-                         */
-                        continue;
-                    }
-	        }
+		if (seg2Ptr->body.mark.hPtr == NULL) {
+		    if (seg2Ptr != textPtr->currentMarkPtr &&
+			    seg2Ptr != textPtr->insertMarkPtr) {
+			/*
+			 * This is an insert or current mark from a
+			 * peer of textPtr.
+			 */
+			continue;
+		    }
+		}
 		prevPtr = seg2Ptr;
 	    }
 	}
@@ -1012,7 +1001,7 @@ GetMarkName(
 
 	return NULL;
     } else {
-	markName = Tcl_GetHashKey(&textPtr->sharedTextPtr->markTable,
+	markName = (const char *)Tcl_GetHashKey(&textPtr->sharedTextPtr->markTable,
 		segPtr->body.mark.hPtr);
     }
     return Tcl_NewStringObj(markName, -1);

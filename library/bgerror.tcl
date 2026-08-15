@@ -6,10 +6,10 @@
 #	trace (like save it to a log).  This is adapted from work done by
 #	Donal K. Fellows.
 #
-# Copyright (c) 1998-2000 by Ajuba Solutions.
-# Copyright (c) 2007 by ActiveState Software Inc.
-# Copyright (c) 2007 Daniel A. Steffen <das@users.sourceforge.net>
-# Copyright (c) 2009 Pat Thoyts <patthoyts@users.sourceforge.net>
+# Copyright © 1998-2000 Ajuba Solutions.
+# Copyright © 2007 ActiveState Software Inc.
+# Copyright © 2007 Daniel A. Steffen <das@users.sourceforge.net>
+# Copyright © 2009 Pat Thoyts <patthoyts@users.sourceforge.net>
 
 namespace eval ::tk::dialog::error {
     namespace import -force ::tk::msgcat::*
@@ -21,7 +21,8 @@ namespace eval ::tk::dialog::error {
     if {[tk windowingsystem] eq "aqua"} {
 	option add *ErrorDialog*background systemAlertBackgroundActive \
 		widgetDefault
-	option add *ErrorDialog*info.text.background white widgetDefault
+	option add *ErrorDialog*info.text.background \
+		systemTextBackgroundColor widgetDefault
 	option add *ErrorDialog*Button.highlightBackground \
 		systemAlertBackgroundActive widgetDefault
     }
@@ -40,7 +41,7 @@ proc ::tk::dialog::error::Details {} {
     set w .bgerrorDialog
     set caption [option get $w.function text {}]
     set command [option get $w.function command {}]
-    if { ($caption eq "") || ($command eq "") } {
+    if {($caption eq "") || ($command eq "")} {
 	grid forget $w.function
     }
     lappend command [$w.top.info.text get 1.0 end-1c]
@@ -49,7 +50,7 @@ proc ::tk::dialog::error::Details {} {
 }
 
 proc ::tk::dialog::error::SaveToLog {text} {
-    if { $::tcl_platform(platform) eq "windows" } {
+    if {$::tcl_platform(platform) eq "windows"} {
 	set allFiles *.*
     } else {
 	set allFiles *
@@ -62,9 +63,9 @@ proc ::tk::dialog::error::SaveToLog {text} {
     set filename [tk_getSaveFile -title [mc "Select Log File"] \
 	    -filetypes $types -defaultextension .log -parent .bgerrorDialog]
     if {$filename ne {}} {
-        set f [open $filename w]
-        puts -nonewline $f $text
-        close $f
+	set f [open $filename w]
+	puts -nonewline $f $text
+	close $f
     }
     return
 }
@@ -97,8 +98,8 @@ proc ::tk::dialog::error::ReturnInDetails w {
 # Arguments:
 #	err - The error message.
 #
-proc ::tk::dialog::error::bgerror err {
-    global errorInfo tcl_platform
+proc ::tk::dialog::error::bgerror {err {flag 1}} {
+    global errorInfo
     variable button
 
     set info $errorInfo
@@ -106,34 +107,50 @@ proc ::tk::dialog::error::bgerror err {
     set ret [catch {::tkerror $err} msg];
     if {$ret != 1} {return -code $ret $msg}
 
-    # Ok the application's tkerror either failed or was not found
-    # we use the default dialog then :
+    # The application's tkerror either failed or was not found
+    # so we use the default dialog.  But on Aqua we cannot display
+    # the dialog if the background error occurs in an idle task
+    # being processed inside of [NSView drawRect].  In that case
+    # we post the dialog as an after task instead.
     set windowingsystem [tk windowingsystem]
     if {$windowingsystem eq "aqua"} {
-	set ok [mc Ok]
-    } else {
-	set ok [mc OK]
+	if $flag {
+	    set errorInfo $info
+	    after 500 [list bgerror "$err" 0]
+	    return
+	}
     }
 
+    set ok [mc OK]
     # Truncate the message if it is too wide (>maxLine characters) or
-    # too tall (>4 lines).  Truncation occurs at the first point at
-    # which one of those conditions is met.
+    # too tall (>maxRows lines).  Truncation occurs at the first point at
+    # which one of those conditions is met. No trailing newline.
     set displayedErr ""
     set lines 0
     set maxLine 45
+    set maxRows 5
     foreach line [split $err \n] {
-	if { [string length $line] > $maxLine } {
-	    append displayedErr "[string range $line 0 [expr {$maxLine-3}]]..."
+	if {$lines > $maxRows - 1} {
+	    # No more lines.  Append to previous line.
+	    append displayedErr { ...}
 	    break
 	}
-	if { $lines > 4 } {
-	    append displayedErr "..."
+	if {[string length $line] > $maxLine} {
+	    append displayedErr "[string range $line 0 $maxLine-3]..."
 	    break
+	}
+	if {$lines > $maxRows - 2 && [string length $line] > $maxLine-4} {
+	    append displayedErr "[string range $line 0 $maxLine-3]..."
+	    break
+	} elseif {$lines > $maxRows - 2} {
+	    # Last line, but no break or newline.  Room to add 4 chars.
+	    append displayedErr "${line}"
 	} else {
 	    append displayedErr "${line}\n"
 	}
 	incr lines
     }
+    set displayedErr [string trim $displayedErr]
 
     set title [mc "Application Error"]
     set text [mc "Error: %1\$s" $displayedErr]
@@ -164,7 +181,7 @@ proc ::tk::dialog::error::bgerror err {
     pack $dlg.top -side top -fill both -expand 1
 
     set W [ttk::frame $dlg.top.info]
-    text $W.text -setgrid true -height 10 -wrap char \
+    text $W.text -setgrid 0 -height 10 -wrap char \
 	-yscrollcommand [list $W.scroll set]
     if {$windowingsystem ne "aqua"} {
 	$W.text configure -width 40
@@ -175,7 +192,7 @@ proc ::tk::dialog::error::bgerror err {
     pack $W.text -side left -expand yes -fill both
     $W.text insert 0.0 "$err\n$info"
     $W.text mark set insert 0.0
-    bind $W.text <ButtonPress-1> { focus %W }
+    bind $W.text <Button-1> {focus %W}
     $W.text configure -state disabled
 
     # 2. Fill the top part with bitmap and message
@@ -200,7 +217,7 @@ proc ::tk::dialog::error::bgerror err {
     foreach {name caption} $buttons {
 	ttk::button $dlg.$name -text $caption -default normal \
 	    -command [namespace code [list set button $i]]
-	grid $dlg.$name -in $dlg.bot -column $i -row 0 -sticky ew -padx 10
+	grid $dlg.$name -in $dlg.bot -column $i -row 0 -sticky ew -padx 7.5p
 	grid columnconfigure $dlg.bot $i -weight 1
 	# We boost the size of some Mac buttons for l&f
 	if {$windowingsystem eq "aqua"} {
@@ -238,7 +255,7 @@ proc ::tk::dialog::error::bgerror err {
 	# order to ensure that it's seen
 	if {[lindex [wm stackorder .] end] ne "$dlg"} {
 	    wm attributes $dlg -topmost 1
-        }
+	}
     }
 
     # 9. Wait for the user to respond, then restore the focus and

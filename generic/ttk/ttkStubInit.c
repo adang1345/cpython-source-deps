@@ -3,11 +3,24 @@
  * It is compiled and linked in with the ttk package proper.
  */
 
-#include "tk.h"
+#include "tkInt.h"
 #include "ttkTheme.h"
 
 MODULE_SCOPE const TtkStubs ttkStubs;
 
+
+#ifdef TK_NO_DEPRECATED
+#   define Ttk_RegisterElementSpec 0
+#endif /* TK_NO_DEPRECATED */
+
+#ifdef __GNUC__
+/*
+ * The rest of this file shouldn't warn about deprecated functions; they're
+ * there because we intend them to be so and know that this file is OK to
+ * touch those fields.
+ */
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 /* !BEGIN!: Do not edit below this line. */
 
 const TtkStubs ttkStubs = {

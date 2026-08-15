@@ -6,7 +6,7 @@
  *	one application can use as its main window an internal window from
  *	another application).
  *
- * Copyright (c) 1996-1997 Sun Microsystems, Inc.
+ * Copyright © 1996-1997 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -34,14 +34,14 @@ typedef struct Container {
 				 * process. */
 } Container;
 
-typedef struct ThreadSpecificData {
+typedef struct {
     Container *firstContainerPtr;
 				/* First in list of all containers managed by
 				 * this process. */
 } ThreadSpecificData;
 static Tcl_ThreadDataKey dataKey;
 
-static void		ContainerEventProc(ClientData clientData,
+static void		ContainerEventProc(void *clientData,
 			    XEvent *eventPtr);
 static void		EmbedGeometryRequest(Container *containerPtr,
 			    int width, int height);
@@ -69,7 +69,7 @@ void
 TkWinCleanupContainerList(void)
 {
     Container *nextPtr;
-    ThreadSpecificData *tsdPtr =
+    ThreadSpecificData *tsdPtr = (ThreadSpecificData *)
 	    Tcl_GetThreadData(&dataKey, sizeof(ThreadSpecificData));
 
     for (; tsdPtr->firstContainerPtr != NULL;
@@ -96,14 +96,18 @@ TkWinCleanupContainerList(void)
  *----------------------------------------------------------------------
  */
 
-	/* ARGSUSED */
 int
 TkpTestembedCmd(
-    ClientData clientData,
+    void *dummy,
     Tcl_Interp *interp,
-    int objc,
+    Tcl_Size objc,
     Tcl_Obj *const objv[])
 {
+    (void)dummy;
+    (void)interp;
+    (void)objc;
+    (void)objv;
+
     return TCL_OK;
 }
 
@@ -160,7 +164,7 @@ void Tk_MapEmbeddedWindow(
 {
     if(!(winPtr->flags & TK_ALREADY_DEAD)) {
 	HWND hwnd = (HWND)winPtr->privatePtr;
-	int state = SendMessage(hwnd, TK_STATE, -1, -1) - 1;
+	int state = SendMessageW(hwnd, TK_STATE, -1, (WPARAM)-1) - 1;
 
 	if (state < 0 || state > 3) {
 	    state = NormalState;
@@ -173,13 +177,13 @@ void Tk_MapEmbeddedWindow(
 	TkpWmSetState(winPtr, state);
 	TkWmMapWindow(winPtr);
     }
-    Tcl_Release((ClientData)winPtr);
+    Tcl_Release(winPtr);
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * TkpUseWindow --
+ * Tk_UseWindow --
  *
  *	This procedure causes a Tk window to use a given Windows handle for a
  *	window as its underlying window, rather than a new Windows window
@@ -200,7 +204,7 @@ void Tk_MapEmbeddedWindow(
  *	The TK_INFO messages are required in order to verify if the window to
  *	use is a valid container. Without an id verification, an invalid
  *	window attachment may cause unexpected crashes/panics (bug 1096074).
- *	Additional sub messages may be definded/used in future for other
+ *	Additional sub messages may be defined/used in future for other
  *	needs.
  *
  *	We do not enforce the above protocol for the reason of backward
@@ -225,7 +229,7 @@ void Tk_MapEmbeddedWindow(
  */
 
 int
-TkpUseWindow(
+Tk_UseWindow(
     Tcl_Interp *interp,		/* If not NULL, used for error reporting if
 				 * string is bogus. */
     Tk_Window tkwin,		/* Tk window that does not yet have an
@@ -244,8 +248,8 @@ TkpUseWindow(
 /*
     if (winPtr->window != None) {
 	Tcl_SetObjResult(interp, Tcl_NewStringObj(
-		"can't modify container after widget is created", -1));
-	Tcl_SetErrorCode(interp, "TK", "EMBED", "POST_CREATE", NULL);
+		"can't modify container after widget is created", TCL_INDEX_NONE));
+	Tcl_SetErrorCode(interp, "TK", "EMBED", "POST_CREATE", (char *)NULL);
 	return TCL_ERROR;
     }
 */
@@ -257,10 +261,13 @@ TkpUseWindow(
 	return TCL_OK;
     }
 
-    if (Tcl_GetInt(interp, string, &id) != TCL_OK) {
+    if (
+#ifdef _WIN64
+	    (sscanf(string, "0x%p", &hwnd) != 1) &&
+#endif
+	    Tcl_GetInt(interp, string, (int *) &hwnd) != TCL_OK) {
 	return TCL_ERROR;
     }
-    hwnd = (HWND) INT2PTR(id);
     if ((HWND)winPtr->privatePtr == hwnd) {
 	return TCL_OK;
     }
@@ -274,24 +281,24 @@ TkpUseWindow(
     if (!IsWindow(hwnd)) {
 	if (interp != NULL) {
 	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
-		    "window \"%s\" doesn't exist", string));
-	    Tcl_SetErrorCode(interp, "TK", "EMBED", "EXIST", NULL);
+		    "window \"%s\" does not exist", string));
+	    Tcl_SetErrorCode(interp, "TK", "EMBED", "EXIST", (char *)NULL);
 	}
 	return TCL_ERROR;
     }
 
-    id = SendMessage(hwnd, TK_INFO, TK_CONTAINER_VERIFY, 0);
+    id = SendMessageW(hwnd, TK_INFO, TK_CONTAINER_VERIFY, 0);
     if (id == PTR2INT(hwnd)) {
-	if (!SendMessage(hwnd, TK_INFO, TK_CONTAINER_ISAVAILABLE, 0)) {
-    	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
-		    "The container is already in use", -1));
-	    Tcl_SetErrorCode(interp, "TK", "EMBED", "IN_USE", NULL);
+	if (!SendMessageW(hwnd, TK_INFO, TK_CONTAINER_ISAVAILABLE, 0)) {
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "The container is already in use", TCL_INDEX_NONE));
+	    Tcl_SetErrorCode(interp, "TK", "EMBED", "IN_USE", (char *)NULL);
 	    return TCL_ERROR;
 	}
     } else if (id == -PTR2INT(hwnd)) {
 	Tcl_SetObjResult(interp, Tcl_NewStringObj(
-		"the window to use is not a Tk container", -1));
-	Tcl_SetErrorCode(interp, "TK", "EMBED", "CONTAINER", NULL);
+		"the window to use is not a Tk container", TCL_INDEX_NONE));
+	Tcl_SetErrorCode(interp, "TK", "EMBED", "CONTAINER", (char *)NULL);
 	return TCL_ERROR;
     } else {
 	/*
@@ -300,14 +307,14 @@ TkpUseWindow(
 	 * order to avoid bug 1096074 in future.
 	 */
 
-	char msg[256];
+	WCHAR msg[256];
 
-	sprintf(msg, "Unable to get information of window \"%.80s\".  Attach to this\nwindow may have unpredictable results if it is not a valid container.\n\nPress Ok to proceed or Cancel to abort attaching.", string);
-	if (IDCANCEL == MessageBoxA(hwnd, msg, "Tk Warning",
+	wsprintfW(msg, L"Unable to get information of window \"%.40hs\".  Attach to this\nwindow may have unpredictable results if it is not a valid container.\n\nPress Ok to proceed or Cancel to abort attaching.", string);
+	if (IDCANCEL == MessageBoxW(hwnd, msg, L"Tk Warning",
 		MB_OKCANCEL | MB_ICONWARNING)) {
-    	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
-		    "Operation has been canceled", -1));
-	    Tcl_SetErrorCode(interp, "TK", "EMBED", "CANCEL", NULL);
+	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
+		    "Operation has been canceled", TCL_INDEX_NONE));
+	    Tcl_SetErrorCode(interp, "TK", "EMBED", "CANCEL", (char *)NULL);
 	    return TCL_ERROR;
 	}
     }
@@ -328,8 +335,8 @@ TkpUseWindow(
      * window.
      */
 
-    Tcl_Preserve((ClientData) winPtr);
-    Tcl_DoWhenIdle((Tcl_IdleProc*) Tk_MapEmbeddedWindow, (ClientData) winPtr);
+    Tcl_Preserve(winPtr);
+    Tcl_DoWhenIdle((Tcl_IdleProc*) Tk_MapEmbeddedWindow, winPtr);
 
     return TCL_OK;
 }
@@ -337,7 +344,7 @@ TkpUseWindow(
 /*
  *----------------------------------------------------------------------
  *
- * TkpMakeContainer --
+ * Tk_MakeContainer --
  *
  *	This procedure is called to indicate that a particular window will be
  *	a container for an embedded application. This changes certain aspects
@@ -354,7 +361,7 @@ TkpUseWindow(
  */
 
 void
-TkpMakeContainer(
+Tk_MakeContainer(
     Tk_Window tkwin)
 {
     TkWindow *winPtr = (TkWindow *) tkwin;
@@ -368,7 +375,7 @@ TkpMakeContainer(
      */
 
     Tk_MakeWindowExist(tkwin);
-    containerPtr = ckalloc(sizeof(Container));
+    containerPtr = (Container *)ckalloc(sizeof(Container));
     containerPtr->parentPtr = winPtr;
     containerPtr->parentHWnd = Tk_GetHWND(Tk_WindowId(tkwin));
     containerPtr->embeddedHWnd = NULL;
@@ -389,7 +396,7 @@ TkpMakeContainer(
      */
 
     Tk_CreateEventHandler(tkwin, StructureNotifyMask,
-	    ContainerEventProc, (ClientData) containerPtr);
+	    ContainerEventProc, containerPtr);
 }
 
 /*
@@ -846,13 +853,22 @@ EmbedGeometryRequest(
 
 static void
 ContainerEventProc(
-    ClientData clientData,	/* Token for container window. */
+    void *clientData,	/* Token for container window. */
     XEvent *eventPtr)		/* ResizeRequest event. */
 {
     Container *containerPtr = (Container *)clientData;
     Tk_Window tkwin = (Tk_Window)containerPtr->parentPtr;
 
     if (eventPtr->type == ConfigureNotify) {
+
+	/*
+	 * Send a ConfigureNotify  to the embedded application.
+	 */
+
+	if (containerPtr->embeddedPtr != NULL) {
+	    TkDoConfigureNotify(containerPtr->embeddedPtr);
+	}
+
 	/*
 	 * Resize the embedded window, if there is any.
 	 */
@@ -873,13 +889,13 @@ ContainerEventProc(
 /*
  *----------------------------------------------------------------------
  *
- * TkpGetOtherWindow --
+ * Tk_GetOtherWindow --
  *
  *	If both the container and embedded window are in the same process,
  *	this procedure will return either one, given the other.
  *
  * Results:
- *	If winPtr is a container, the return value is the token for the
+ *	If tkwin is a container, the return value is the token for the
  *	embedded window, and vice versa. If the "other" window isn't in this
  *	process, NULL is returned.
  *
@@ -889,9 +905,9 @@ ContainerEventProc(
  *----------------------------------------------------------------------
  */
 
-TkWindow *
-TkpGetOtherWindow(
-    TkWindow *winPtr)		/* Tk's structure for a container or embedded
+Tk_Window
+Tk_GetOtherWindow(
+    Tk_Window tkwin)		/* Tk's structure for a container or embedded
 				 * window. */
 {
     Container *containerPtr;
@@ -900,10 +916,10 @@ TkpGetOtherWindow(
 
     for (containerPtr = tsdPtr->firstContainerPtr; containerPtr != NULL;
 	    containerPtr = containerPtr->nextPtr) {
-	if (containerPtr->embeddedPtr == winPtr) {
-	    return containerPtr->parentPtr;
-	} else if (containerPtr->parentPtr == winPtr) {
-	    return containerPtr->embeddedPtr;
+	if ((Tk_Window)containerPtr->embeddedPtr == tkwin) {
+	    return (Tk_Window)containerPtr->parentPtr;
+	} else if ((Tk_Window)containerPtr->parentPtr == tkwin) {
+	    return (Tk_Window)containerPtr->embeddedPtr;
 	}
     }
     return NULL;
@@ -1006,7 +1022,7 @@ TkpClaimFocus(
 				 * it. */
 {
     HWND hwnd = GetParent(Tk_GetHWND(topLevelPtr->window));
-    SendMessage(hwnd, TK_CLAIMFOCUS, (WPARAM) force, 0);
+    SendMessageW(hwnd, TK_CLAIMFOCUS, (WPARAM) force, 0);
 }
 
 /*
@@ -1038,6 +1054,8 @@ TkpRedirectKeyEvent(
     XEvent *eventPtr)		/* X event to redirect (should be KeyPress or
 				 * KeyRelease). */
 {
+    (void)winPtr;
+    (void)eventPtr;
     /* not implemented */
 }
 
@@ -1076,15 +1094,15 @@ EmbedWindowDeleted(
 
     prevPtr = NULL;
     containerPtr = tsdPtr->firstContainerPtr;
-    if (containerPtr == NULL) return;
     while (1) {
+	if (containerPtr == NULL) return;
 	if (containerPtr->embeddedPtr == winPtr) {
 	    containerPtr->embeddedHWnd = NULL;
 	    containerPtr->embeddedPtr = NULL;
 	    break;
 	}
 	if (containerPtr->parentPtr == winPtr) {
-	    SendMessage(containerPtr->embeddedHWnd, WM_CLOSE, 0, 0);
+	    SendMessageW(containerPtr->embeddedHWnd, WM_CLOSE, 0, 0);
 	    containerPtr->parentPtr = NULL;
 	    containerPtr->embeddedPtr = NULL;
 	    break;

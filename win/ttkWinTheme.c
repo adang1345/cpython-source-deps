@@ -1,21 +1,21 @@
-/* winTheme.c - Copyright (C) 2004 Pat Thoyts <patthoyts@users.sf.net>
+/* winTheme.c - Copyright © 2004 Pat Thoyts <patthoyts@users.sf.net>
  */
 
 #ifdef _MSC_VER
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include <tkWinInt.h>
+#include "tkWinInt.h"
 
-#ifndef DFCS_HOT	/* Windows 98/Me, Windows 200/XP only */
+#ifndef DFCS_HOT	/* Windows 98/Me, Windows 2000/XP only */
 #define DFCS_HOT 0
 #endif
 
-#include "ttk/ttkTheme.h"
+#include "ttk/ttkThemeInt.h"
 
 /*
  * BoxToRect --
- * 	Helper routine.  Converts a Ttk_Box to a Win32 RECT.
+ *	Helper routine.  Converts a Ttk_Box to a Win32 RECT.
  */
 static RECT BoxToRect(Ttk_Box b)
 {
@@ -29,12 +29,12 @@ static RECT BoxToRect(Ttk_Box b)
 
 /*
  * ReliefToEdge --
- * 	Convert a Tk "relief" value into an Windows "edge" value.
- * 	NB: Caller must check for RELIEF_FLAT and RELIEF_SOLID,
+ *	Convert a Tk "relief" value into an Windows "edge" value.
+ *	NB: Caller must check for RELIEF_FLAT and RELIEF_SOLID,
  *	which must be handled specially.
  *
  *	Passing the BF_FLAT flag to DrawEdge() yields something similar
- * 	to TK_RELIEF_SOLID. TK_RELIEF_FLAT can be implemented by not
+ *	to TK_RELIEF_SOLID. TK_RELIEF_FLAT can be implemented by not
  *	drawing anything.
  */
 static unsigned int ReliefToEdge(int relief)
@@ -54,15 +54,15 @@ static unsigned int ReliefToEdge(int relief)
  * +++ State tables for FrameControlElements.
  */
 
-static Ttk_StateTable checkbutton_statemap[] = { /* see also SF#1865898 */
+static const Ttk_StateTable checkbutton_statemap[] = { /* see also SF#1865898 */
     { DFCS_BUTTON3STATE|DFCS_CHECKED|DFCS_INACTIVE,
-    	TTK_STATE_ALTERNATE|TTK_STATE_DISABLED, 0 },
+	TTK_STATE_ALTERNATE|TTK_STATE_DISABLED, 0 },
     { DFCS_BUTTON3STATE|DFCS_CHECKED|DFCS_PUSHED,
-    	TTK_STATE_ALTERNATE|TTK_STATE_PRESSED, 0 },
+	TTK_STATE_ALTERNATE|TTK_STATE_PRESSED, 0 },
     { DFCS_BUTTON3STATE|DFCS_CHECKED|DFCS_HOT,
-    	TTK_STATE_ALTERNATE|TTK_STATE_ACTIVE, 0 },
+	TTK_STATE_ALTERNATE|TTK_STATE_ACTIVE, 0 },
     { DFCS_BUTTON3STATE|DFCS_CHECKED,
-    	TTK_STATE_ALTERNATE, 0 },
+	TTK_STATE_ALTERNATE, 0 },
 
     { DFCS_CHECKED|DFCS_INACTIVE, TTK_STATE_SELECTED|TTK_STATE_DISABLED, 0 },
     { DFCS_CHECKED|DFCS_PUSHED,   TTK_STATE_SELECTED|TTK_STATE_PRESSED, 0 },
@@ -75,14 +75,14 @@ static Ttk_StateTable checkbutton_statemap[] = { /* see also SF#1865898 */
     { 0, 0, 0 },
 };
 
-static Ttk_StateTable pushbutton_statemap[] = {
+static const Ttk_StateTable pushbutton_statemap[] = {
     { DFCS_INACTIVE,	  TTK_STATE_DISABLED, 0 },
     { DFCS_PUSHED,	  TTK_STATE_PRESSED, 0 },
     { DFCS_HOT,		  TTK_STATE_ACTIVE, 0 },
     { 0, 0, 0 }
 };
 
-static Ttk_StateTable arrow_statemap[] = {
+static const Ttk_StateTable arrow_statemap[] = {
     { DFCS_INACTIVE,            TTK_STATE_DISABLED, 0 },
     { DFCS_PUSHED | DFCS_FLAT,  TTK_STATE_PRESSED,  0 },
     { 0, 0, 0 }
@@ -90,37 +90,38 @@ static Ttk_StateTable arrow_statemap[] = {
 
 /*------------------------------------------------------------------------
  * +++ FrameControlElement --
- * 	General-purpose element for things drawn with DrawFrameControl
+ *	General-purpose element for things drawn with DrawFrameControl
  */
 typedef struct {
     const char *name;		/* element name */
     int classId;		/* class id for DrawFrameControl */
     int partId;			/* part id for DrawFrameControl  */
-    int cxId;			/* system metric ids for width/height... */
-    int cyId;			/* ... or size if FIXEDSIZE bit set */
-    Ttk_StateTable *stateMap;	/* map Tk states to Win32 flags */
+    unsigned cxId;		/* system metric ids for width/height... */
+    unsigned cyId;		/* ... or size if FIXEDSIZE bit set */
+    const Ttk_StateTable *stateMap;	/* map Tk states to Win32 flags */
     Ttk_Padding margins;	/* additional placement padding */
 } FrameControlElementData;
 
-#define _FIXEDSIZE  0x80000000L
-#define _HALFMETRIC 0x40000000L
+#define BASE_DIM    16
+#define _FIXEDSIZE  0x80000000UL
+#define _HALFMETRIC 0x40000000UL
 #define FIXEDSIZE(id) (id|_FIXEDSIZE)
 #define HALFMETRIC(id) (id|_HALFMETRIC)
 #define GETMETRIC(m) \
-    ((m) & _FIXEDSIZE ? (int)((m) & ~_FIXEDSIZE) : GetSystemMetrics((m)&0x0fffffff))
+    ((m) & _FIXEDSIZE ? (int)((m) & ~_FIXEDSIZE) : GetSystemMetrics((m)&0xFFFFFFF))
 
 static FrameControlElementData FrameControlElements[] = {
     { "Checkbutton.indicator",
-	DFC_BUTTON, DFCS_BUTTONCHECK, FIXEDSIZE(13), FIXEDSIZE(13),
+	DFC_BUTTON, DFCS_BUTTONCHECK, FIXEDSIZE(BASE_DIM), FIXEDSIZE(BASE_DIM),
 	checkbutton_statemap, {0,0,4,0} },
     { "Radiobutton.indicator",
-    	DFC_BUTTON, DFCS_BUTTONRADIO, FIXEDSIZE(13), FIXEDSIZE(13),
+	DFC_BUTTON, DFCS_BUTTONRADIO, FIXEDSIZE(BASE_DIM), FIXEDSIZE(BASE_DIM),
 	checkbutton_statemap, {0,0,4,0} },
     { "uparrow",
-    	DFC_SCROLL, DFCS_SCROLLUP, SM_CXVSCROLL, SM_CYVSCROLL,
+	DFC_SCROLL, DFCS_SCROLLUP, SM_CXVSCROLL, SM_CYVSCROLL,
 	arrow_statemap, {0,0,0,0} },
     { "downarrow",
-    	DFC_SCROLL, DFCS_SCROLLDOWN, SM_CXVSCROLL, SM_CYVSCROLL,
+	DFC_SCROLL, DFCS_SCROLLDOWN, SM_CXVSCROLL, SM_CYVSCROLL,
 	arrow_statemap, {0,0,0,0} },
     { "leftarrow",
 	DFC_SCROLL, DFCS_SCROLLLEFT, SM_CXHSCROLL, SM_CYHSCROLL,
@@ -129,7 +130,7 @@ static FrameControlElementData FrameControlElements[] = {
 	DFC_SCROLL, DFCS_SCROLLRIGHT, SM_CXHSCROLL, SM_CYHSCROLL,
 	arrow_statemap, {0,0,0,0} },
     { "sizegrip",
-    	DFC_SCROLL, DFCS_SCROLLSIZEGRIP, SM_CXVSCROLL, SM_CYHSCROLL,
+	DFC_SCROLL, DFCS_SCROLLSIZEGRIP, SM_CXVSCROLL, SM_CYHSCROLL,
 	arrow_statemap, {0,0,0,0} },
     { "Spinbox.uparrow",
 	DFC_SCROLL, DFCS_SCROLLUP, SM_CXVSCROLL, HALFMETRIC(SM_CYVSCROLL),
@@ -144,23 +145,45 @@ static FrameControlElementData FrameControlElements[] = {
 /* ---------------------------------------------------------------------- */
 
 static void FrameControlElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    void *clientData,
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    int *widthPtr,
+    int *heightPtr,
+    TCL_UNUSED(Ttk_Padding *))
 {
-    FrameControlElementData *p = clientData;
+    FrameControlElementData *p = (FrameControlElementData *)clientData;
     int cx = GETMETRIC(p->cxId);
     int cy = GETMETRIC(p->cyId);
+
+    if ((p->cxId & _FIXEDSIZE) && cx == BASE_DIM) {
+	double scalingLevel = TkScalingLevel(tkwin);
+	cx *= scalingLevel;
+	cy *= scalingLevel;
+
+	/*
+	 * Update the corresponding element of the array FrameControlElements
+	 */
+	p->cxId = FIXEDSIZE(cx);
+	p->cyId = FIXEDSIZE(cy);
+    }
+
     if (p->cxId & _HALFMETRIC) cx /= 2;
     if (p->cyId & _HALFMETRIC) cy /= 2;
+
     *widthPtr = cx + Ttk_PaddingWidth(p->margins);
     *heightPtr = cy + Ttk_PaddingHeight(p->margins);
 }
 
 static void FrameControlElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    void *clientData,
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
 {
-    FrameControlElementData *elementData = clientData;
+    FrameControlElementData *elementData = (FrameControlElementData *)clientData;
     RECT rc = BoxToRect(Ttk_PadBox(b, elementData->margins));
     TkWinDCState dcState;
     HDC hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
@@ -171,7 +194,7 @@ static void FrameControlElementDraw(
     TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec FrameControlElementSpec = {
+static const Ttk_ElementSpec FrameControlElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(NullElement),
     TtkNullElementOptions,
@@ -187,24 +210,32 @@ typedef struct {
     Tcl_Obj	*reliefObj;
 } BorderElement;
 
-static Ttk_ElementOptionSpec BorderElementOptions[] = {
-    { "-relief",TK_OPTION_RELIEF,Tk_Offset(BorderElement,reliefObj), "flat" },
-    {NULL, 0, 0, NULL}
+static const Ttk_ElementOptionSpec BorderElementOptions[] = {
+    { "-relief",TK_OPTION_RELIEF, offsetof(BorderElement,reliefObj), "flat" },
+    {NULL, TK_OPTION_BOOLEAN, 0, NULL}
 };
 
 static void BorderElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    TCL_UNUSED(Tk_Window),
+    TCL_UNUSED(int *), /* widthPtr */
+    TCL_UNUSED(int *), /* heightPtr */
+    Ttk_Padding *paddingPtr)
 {
     paddingPtr->left = paddingPtr->right = GetSystemMetrics(SM_CXEDGE);
     paddingPtr->top = paddingPtr->bottom = GetSystemMetrics(SM_CYEDGE);
 }
 
 static void BorderElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    TCL_UNUSED(Ttk_State))
 {
-    BorderElement *border = elementRecord;
+    BorderElement *border = (BorderElement *)elementRecord;
     RECT rc = BoxToRect(b);
     int relief = TK_RELIEF_FLAT;
     TkWinDCState dcState;
@@ -220,7 +251,7 @@ static void BorderElementDraw(
     }
 }
 
-static Ttk_ElementSpec BorderElementSpec = {
+static const Ttk_ElementSpec BorderElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(BorderElement),
     BorderElementOptions,
@@ -237,25 +268,33 @@ typedef struct {
     Tcl_Obj	*backgroundObj;
 } FieldElement;
 
-static Ttk_ElementOptionSpec FieldElementOptions[] = {
+static const Ttk_ElementOptionSpec FieldElementOptions[] = {
     { "-fieldbackground", TK_OPTION_BORDER,
-    	Tk_Offset(FieldElement,backgroundObj), "white" },
-    { NULL, 0, 0, NULL }
+	offsetof(FieldElement,backgroundObj), "white" },
+    { NULL, TK_OPTION_BOOLEAN, 0, NULL }
 };
 
 static void FieldElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    TCL_UNUSED(Tk_Window),
+    TCL_UNUSED(int *), /* widthPtr */
+    TCL_UNUSED(int *), /* heightPtr */
+    Ttk_Padding *paddingPtr)
 {
     paddingPtr->left = paddingPtr->right = GetSystemMetrics(SM_CXEDGE);
     paddingPtr->top = paddingPtr->bottom = GetSystemMetrics(SM_CYEDGE);
 }
 
 static void FieldElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    TCL_UNUSED(Ttk_State))
 {
-    FieldElement *field = elementRecord;
+    FieldElement *field = (FieldElement *)elementRecord;
     Tk_3DBorder bg = Tk_Get3DBorderFromObj(tkwin, field->backgroundObj);
     RECT rc = BoxToRect(b);
     TkWinDCState dcState;
@@ -269,7 +308,7 @@ static void FieldElementDraw(
     TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec FieldElementSpec = {
+static const Ttk_ElementSpec FieldElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(FieldElement),
     FieldElementOptions,
@@ -288,23 +327,27 @@ typedef struct {
     Tcl_Obj	*defaultStateObj;
 } ButtonBorderElement;
 
-static Ttk_ElementOptionSpec ButtonBorderElementOptions[] = {
+static const Ttk_ElementOptionSpec ButtonBorderElementOptions[] = {
     { "-relief",TK_OPTION_RELIEF,
-	Tk_Offset(ButtonBorderElement,reliefObj), "flat" },
+	offsetof(ButtonBorderElement,reliefObj), "flat" },
     { "-highlightcolor",TK_OPTION_COLOR,
-	Tk_Offset(ButtonBorderElement,highlightColorObj), "black" },
+	offsetof(ButtonBorderElement,highlightColorObj), "black" },
     { "-default", TK_OPTION_ANY,
-	Tk_Offset(ButtonBorderElement,defaultStateObj), "disabled" },
-    {NULL, 0, 0, NULL}
+	offsetof(ButtonBorderElement,defaultStateObj), "disabled" },
+    {NULL, TK_OPTION_BOOLEAN, 0, NULL}
 };
 
 static void ButtonBorderElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    TCL_UNUSED(Tk_Window),
+    TCL_UNUSED(int *), /* widthPtr */
+    TCL_UNUSED(int *), /* heightPtr */
+    Ttk_Padding *paddingPtr)
 {
-    ButtonBorderElement *bd = elementRecord;
+    ButtonBorderElement *bd = (ButtonBorderElement *)elementRecord;
     int relief = TK_RELIEF_RAISED;
-    int defaultState = TTK_BUTTON_DEFAULT_DISABLED;
+    Ttk_ButtonDefaultState defaultState = TTK_BUTTON_DEFAULT_DISABLED;
     short int cx, cy;
 
     Tk_GetReliefFromObj(NULL, bd->reliefObj, &relief);
@@ -315,7 +358,7 @@ static void ButtonBorderElementSize(
     /* Space for default indicator:
      */
     if (defaultState != TTK_BUTTON_DEFAULT_DISABLED) {
-    	++cx; ++cy;
+	++cx; ++cy;
     }
 
     /* Space for focus ring:
@@ -327,12 +370,16 @@ static void ButtonBorderElementSize(
 }
 
 static void ButtonBorderElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
 {
-    ButtonBorderElement *bd = elementRecord;
+    ButtonBorderElement *bd = (ButtonBorderElement *)elementRecord;
     int relief = TK_RELIEF_FLAT;
-    int defaultState = TTK_BUTTON_DEFAULT_DISABLED;
+    Ttk_ButtonDefaultState defaultState = TTK_BUTTON_DEFAULT_DISABLED;
     TkWinDCState dcState;
     HDC hdc;
     RECT rc;
@@ -357,17 +404,19 @@ static void ButtonBorderElementDraw(
 	DFC_BUTTON,	/* classId */
 	DFCS_BUTTONPUSH | Ttk_StateTableLookup(pushbutton_statemap, state));
 
+    TkWinReleaseDrawableDC(d, hdc, &dcState);
+
     /* Draw focus ring:
      */
     if (state & TTK_STATE_FOCUS) {
 	short int borderWidth = 3;	/* @@@ Use GetSystemMetrics?*/
-	rc = BoxToRect(Ttk_PadBox(b, Ttk_UniformPadding(borderWidth)));
-    	DrawFocusRect(hdc, &rc);
+	b = Ttk_PadBox(b, Ttk_UniformPadding(borderWidth));
+	TkWinDrawDottedRect(Tk_Display(tkwin), d, -1, b.x, b.y,
+	    b.width, b.height);
     }
-    TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec ButtonBorderElementSpec = {
+static const Ttk_ElementSpec ButtonBorderElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(ButtonBorderElement),
     ButtonBorderElementOptions,
@@ -377,30 +426,35 @@ static Ttk_ElementSpec ButtonBorderElementSpec = {
 
 /*------------------------------------------------------------------------
  * +++ Focus element.
- * 	Draw dashed focus rectangle.
+ *	Draw dotted focus rectangle.
  */
 
 static void FocusElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    TCL_UNUSED(Tk_Window),
+    TCL_UNUSED(int *), /* widthPtr */
+    TCL_UNUSED(int *), /* heightPtr */
+    Ttk_Padding *paddingPtr)
 {
     *paddingPtr = Ttk_UniformPadding(1);
 }
 
 static void FocusElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
 {
     if (state & TTK_STATE_FOCUS) {
-	RECT rc = BoxToRect(b);
-	TkWinDCState dcState;
-	HDC hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
-    	DrawFocusRect(hdc, &rc);
-	TkWinReleaseDrawableDC(d, hdc, &dcState);
+	TkWinDrawDottedRect(Tk_Display(tkwin), d, -1, b.x, b.y,
+	    b.width, b.height);
     }
 }
 
-static Ttk_ElementSpec FocusElementSpec = {
+static const Ttk_ElementSpec FocusElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(NullElement),
     TtkNullElementOptions,
@@ -409,53 +463,53 @@ static Ttk_ElementSpec FocusElementSpec = {
 };
 
 /* FillFocusElement --
- * 	Draws a focus ring filled with the selection color
+ *	Draws a focus ring filled with the selection color
  */
 
 typedef struct {
     Tcl_Obj *fillColorObj;
 } FillFocusElement;
 
-static Ttk_ElementOptionSpec FillFocusElementOptions[] = {
+static const Ttk_ElementOptionSpec FillFocusElementOptions[] = {
     { "-focusfill", TK_OPTION_COLOR,
-	Tk_Offset(FillFocusElement,fillColorObj), "white" },
-    {NULL, 0, 0, NULL}
+	offsetof(FillFocusElement,fillColorObj), "white" },
+    {NULL, TK_OPTION_BOOLEAN, 0, NULL}
 };
 
 	/* @@@ FIX THIS */
 static void FillFocusElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
 {
-    FillFocusElement *focus = elementRecord;
     if (state & TTK_STATE_FOCUS) {
-	RECT rc = BoxToRect(b);
-	TkWinDCState dcState;
+	FillFocusElement *focus = (FillFocusElement *)elementRecord;
 	XColor *fillColor = Tk_GetColorFromObj(tkwin, focus->fillColorObj);
 	GC gc = Tk_GCForColor(fillColor, d);
-	HDC hdc;
+	XFillRectangle(Tk_Display(tkwin), d, gc, b.x, b.y, b.width, b.height);
 
-	XFillRectangle(Tk_Display(tkwin),d,gc, b.x,b.y,b.width,b.height);
-	hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
-    	DrawFocusRect(hdc, &rc);
-	TkWinReleaseDrawableDC(d, hdc, &dcState);
+	TkWinDrawDottedRect(Tk_Display(tkwin), d, -1, b.x, b.y,
+	    b.width, b.height);
     }
 }
 
 /*
  * ComboboxFocusElement --
- * 	Read-only comboboxes have a filled focus ring, editable ones do not.
+ *	Read-only comboboxes have a filled focus ring, editable ones do not.
  */
 static void ComboboxFocusElementDraw(
     void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    Drawable d, Ttk_Box b, Ttk_State state)
 {
     if (state & TTK_STATE_READONLY) {
-    	FillFocusElementDraw(clientData, elementRecord, tkwin, d, b, state);
+	FillFocusElementDraw(clientData, elementRecord, tkwin, d, b, state);
     }
 }
 
-static Ttk_ElementSpec ComboboxFocusElementSpec = {
+static const Ttk_ElementSpec ComboboxFocusElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(FillFocusElement),
     FillFocusElementOptions,
@@ -482,7 +536,7 @@ static const WORD Pattern[] = {
 
 static void TroughClientDataDeleteProc(void *clientData)
 {
-    TroughClientData *cd = clientData;
+    TroughClientData *cd = (TroughClientData *)clientData;
     DeleteObject(cd->PatternBrush);
     DeleteObject(cd->PatternBitmap);
     ckfree(clientData);
@@ -490,7 +544,7 @@ static void TroughClientDataDeleteProc(void *clientData)
 
 static TroughClientData *TroughClientDataInit(Tcl_Interp *interp)
 {
-    TroughClientData *cd = ckalloc(sizeof(*cd));
+    TroughClientData *cd = (TroughClientData *)ckalloc(sizeof(*cd));
     cd->PatternBitmap = CreateBitmap(8, 8, 1, 1, Pattern);
     cd->PatternBrush  = CreatePatternBrush(cd->PatternBitmap);
     Ttk_RegisterCleanup(interp, cd, TroughClientDataDeleteProc);
@@ -498,16 +552,20 @@ static TroughClientData *TroughClientDataInit(Tcl_Interp *interp)
 }
 
 static void TroughElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    void *clientData,
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    TCL_UNUSED(Ttk_State))
 {
-    TroughClientData *cd = clientData;
+    TroughClientData *cd = (TroughClientData *)clientData;
     TkWinDCState dcState;
     HDC hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
     HBRUSH hbr;
     COLORREF bk, oldbk, oldtxt;
 
-    hbr = SelectObject(hdc, GetSysColorBrush(COLOR_SCROLLBAR));
+    hbr = (HBRUSH)SelectObject(hdc, GetSysColorBrush(COLOR_SCROLLBAR));
     bk = GetSysColor(COLOR_3DHIGHLIGHT);
     oldtxt = SetTextColor(hdc, GetSysColor(COLOR_3DFACE));
     oldbk = SetBkColor(hdc, bk);
@@ -525,7 +583,7 @@ static void TroughElementDraw(
     TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec TroughElementSpec = {
+static const Ttk_ElementSpec TroughElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(NullElement),
     TtkNullElementOptions,
@@ -541,17 +599,21 @@ typedef struct {
     Tcl_Obj *orientObj;
 } ThumbElement;
 
-static Ttk_ElementOptionSpec ThumbElementOptions[] = {
-    { "-orient", TK_OPTION_ANY,Tk_Offset(ThumbElement,orientObj),"horizontal"},
-    { NULL, 0, 0, NULL }
+static const Ttk_ElementOptionSpec ThumbElementOptions[] = {
+    { "-orient", TK_OPTION_ANY, offsetof(ThumbElement,orientObj),"horizontal"},
+    { NULL, TK_OPTION_BOOLEAN, 0, NULL }
 };
 
 static void ThumbElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    TCL_UNUSED(Tk_Window),
+    int *widthPtr,
+    int *heightPtr,
+    TCL_UNUSED(Ttk_Padding *))
 {
-    ThumbElement *thumbPtr = elementRecord;
-    int orient;
+    ThumbElement *thumbPtr = (ThumbElement *)elementRecord;
+    Ttk_Orient orient;
 
     Ttk_GetOrientFromObj(NULL, thumbPtr->orientObj, &orient);
     if (orient == TTK_ORIENT_HORIZONTAL) {
@@ -564,23 +626,28 @@ static void ThumbElementSize(
 }
 
 static void ThumbElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
 {
     RECT rc = BoxToRect(b);
     TkWinDCState dcState;
     HDC hdc;
 
     /* Windows doesn't show a thumb when the scrollbar is disabled */
-    if (state & TTK_STATE_DISABLED)
+    if (state & TTK_STATE_DISABLED) {
 	return;
+    }
 
     hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
     DrawEdge(hdc, &rc, EDGE_RAISED, BF_RECT | BF_MIDDLE);
     TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec ThumbElementSpec = {
+static const Ttk_ElementSpec ThumbElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(ThumbElement),
     ThumbElementOptions,
@@ -597,18 +664,22 @@ typedef struct {
     Tcl_Obj *orientObj;  /* orientation of the slider widget */
 } SliderElement;
 
-static Ttk_ElementOptionSpec SliderElementOptions[] = {
-    { "-orient", TK_OPTION_ANY, Tk_Offset(SliderElement,orientObj),
+static const Ttk_ElementOptionSpec SliderElementOptions[] = {
+    { "-orient", TK_OPTION_ANY, offsetof(SliderElement,orientObj),
       "horizontal" },
-      { NULL, 0, 0, NULL }
+      { NULL, TK_OPTION_BOOLEAN, 0, NULL }
 };
 
 static void SliderElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    TCL_UNUSED(Tk_Window),
+    int *widthPtr,
+    int *heightPtr,
+    TCL_UNUSED(Ttk_Padding *))
 {
-    SliderElement *slider = elementRecord;
-    int orient;
+    SliderElement *slider = (SliderElement *)elementRecord;
+    Ttk_Orient orient;
 
     Ttk_GetOrientFromObj(NULL, slider->orientObj, &orient);
     if (orient == TTK_ORIENT_HORIZONTAL) {
@@ -621,8 +692,12 @@ static void SliderElementSize(
 }
 
 static void SliderElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    TCL_UNUSED(Ttk_State))
 {
     RECT rc = BoxToRect(b);
     TkWinDCState dcState;
@@ -633,7 +708,7 @@ static void SliderElementDraw(
     TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec SliderElementSpec = {
+static const Ttk_ElementSpec SliderElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(SliderElement),
     SliderElementOptions,
@@ -645,26 +720,284 @@ static Ttk_ElementSpec SliderElementSpec = {
  * +++ Notebook elements.
  */
 
+typedef struct {
+    Tcl_Obj *borderWidthObj;
+    Tcl_Obj *backgroundObj;
+} TabElement;
+
+static const Ttk_ElementOptionSpec TabElementOptions[] = {
+    { "-borderwidth", TK_OPTION_PIXELS,
+	offsetof(TabElement,borderWidthObj), "1" },
+    { "-background", TK_OPTION_BORDER,
+	offsetof(TabElement,backgroundObj), DEFAULT_BACKGROUND },
+    {0,TK_OPTION_BOOLEAN,0,0}
+};
+
+static void TabElementSize(
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    Tk_Window tkwin,
+    TCL_UNUSED(int *), /* widthPtr */
+    TCL_UNUSED(int *), /* heightPtr */
+    Ttk_Padding *paddingPtr)
+{
+    TabElement *tab = (TabElement *)elementRecord;
+    int borderWidth = 1;
+    Ttk_PositionSpec nbTabPlcStickBit = TTK_STICK_S;
+    TkMainInfo *mainInfoPtr = ((TkWindow *) tkwin)->mainPtr;
+
+    Tk_GetPixelsFromObj(0, tkwin, tab->borderWidthObj, &borderWidth);
+    *paddingPtr = Ttk_UniformPadding((short)borderWidth);
+
+    if (mainInfoPtr != NULL) {
+	nbTabPlcStickBit =
+	    (Ttk_PositionSpec) (mainInfoPtr->nbTabPlacement & 0x0f);
+    }
+
+    switch (nbTabPlcStickBit) {
+	default:
+	case TTK_STICK_S:
+	    paddingPtr->bottom = 0;
+	    break;
+	case TTK_STICK_N:
+	    paddingPtr->top = 0;
+	    break;
+	case TTK_STICK_E:
+	    paddingPtr->right = 0;
+	    break;
+	case TTK_STICK_W:
+	    paddingPtr->left = 0;
+	    break;
+    }
+}
+
+static void TabElementDraw(
+    TCL_UNUSED(void *), /* clientData */
+    void *elementRecord,
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    Ttk_State state)
+{
+    Ttk_PositionSpec nbTabPosStickBit = TTK_STICK_W;
+    Ttk_PositionSpec nbTabPlcStickBit = TTK_STICK_S;
+    TkMainInfo *mainInfoPtr = ((TkWindow *) tkwin)->mainPtr;
+    TabElement *tab = (TabElement *)elementRecord;
+    Tk_3DBorder border = Tk_Get3DBorderFromObj(tkwin, tab->backgroundObj);
+    XPoint pts[6];
+    double scalingLevel = TkScalingLevel(tkwin);
+    int cut = round(2 * scalingLevel);
+    Display *disp = Tk_Display(tkwin);
+    int once = 1, borderWidth = 1;
+
+    if (mainInfoPtr != NULL) {
+	nbTabPosStickBit =
+	    (Ttk_PositionSpec) (mainInfoPtr->nbTabPosition & 0x0f);
+	nbTabPlcStickBit =
+	    (Ttk_PositionSpec) (mainInfoPtr->nbTabPlacement & 0x0f);
+    }
+
+    if (state & TTK_STATE_SELECTED) {
+	/*
+	 * Draw slightly outside of the allocated parcel,
+	 * to overwrite the client area border.
+	 */
+	switch (nbTabPlcStickBit) {
+	    default:
+	    case TTK_STICK_S:
+		b.height += 2;
+		break;
+	    case TTK_STICK_N:
+		b.height += 2; b.y -= 2;
+		break;
+	    case TTK_STICK_E:
+		b.width += 2;
+		break;
+	    case TTK_STICK_W:
+		b.width += 2; b.x -= 2;
+		break;
+	}
+    }
+
+    switch (nbTabPlcStickBit) {
+	default:
+	case TTK_STICK_S:
+	    pts[0].x = b.x;  pts[0].y = b.y + b.height-1;
+	    pts[1].x = b.x;  pts[1].y = b.y + cut;
+	    pts[2].x = b.x + cut;  pts[2].y = b.y;
+	    pts[3].x = b.x + b.width-1 - cut;  pts[3].y = b.y;
+	    pts[4].x = b.x + b.width-1;  pts[4].y = b.y + cut;
+	    pts[5].x = b.x + b.width-1;  pts[5].y = b.y + b.height;
+	    break;
+	case TTK_STICK_N:
+	    pts[0].x = b.x;  pts[0].y = b.y;
+	    pts[1].x = b.x;  pts[1].y = b.y + b.height-1 - cut;
+	    pts[2].x = b.x + cut;  pts[2].y = b.y + b.height-1;
+	    pts[3].x = b.x + b.width-1 - cut;  pts[3].y = b.y + b.height-1;
+	    pts[4].x = b.x + b.width-1;  pts[4].y = b.y + b.height-1 - cut;
+	    pts[5].x = b.x + b.width-1;  pts[5].y = b.y-1;
+	    break;
+	case TTK_STICK_E:
+	    pts[0].x = b.x + b.width-1;  pts[0].y = b.y;
+	    pts[1].x = b.x + cut;  pts[1].y = b.y;
+	    pts[2].x = b.x;  pts[2].y = b.y + cut;
+	    pts[3].x = b.x;  pts[3].y = b.y + b.height-1 - cut;
+	    pts[4].x = b.x + cut;  pts[4].y = b.y + b.height-1;
+	    pts[5].x = b.x + b.width;  pts[5].y = b.y + b.height-1;
+	    break;
+	case TTK_STICK_W:
+	    pts[0].x = b.x;  pts[0].y = b.y;
+	    pts[1].x = b.x + b.width-1 - cut;  pts[1].y = b.y;
+	    pts[2].x = b.x + b.width-1;  pts[2].y = b.y + cut;
+	    pts[3].x = b.x + b.width-1;  pts[3].y = b.y + b.height-1 - cut;
+	    pts[4].x = b.x + b.width-1 - cut;  pts[4].y = b.y + b.height-1;
+	    pts[5].x = b.x-1;  pts[5].y = b.y + b.height-1;
+	    break;
+    }
+
+    XFillPolygon(disp, d, Tk_3DBorderGC(tkwin, border, TK_3D_FLAT_GC),
+	    pts, 6, Convex, CoordModeOrigin);
+
+    Tk_GetPixelsFromObj(NULL, tkwin, tab->borderWidthObj, &borderWidth);
+    while (borderWidth--) {
+	int n;
+
+	switch (nbTabPlcStickBit) {
+	    default:
+	    case TTK_STICK_S:
+	    case TTK_STICK_E:
+		n = 3;
+		break;
+	    case TTK_STICK_N:
+	    case TTK_STICK_W:
+		n = 5;
+		break;
+	}
+	if ((state & (TTK_STATE_LAST | TTK_STATE_SELECTED)) ==
+		(TTK_STATE_LAST | TTK_STATE_SELECTED) &&
+		(nbTabPosStickBit == TTK_STICK_E ||
+		 nbTabPosStickBit == TTK_STICK_S)) {
+	    --n;
+	}
+
+	switch (nbTabPlcStickBit) {
+	    default:
+	    case TTK_STICK_S:
+	    case TTK_STICK_E:
+		XDrawLines(disp, d,
+			Tk_3DBorderGC(tkwin, border, TK_3D_LIGHT_GC),
+			pts, 4, CoordModeOrigin);
+		XDrawLines(disp, d,
+			Tk_3DBorderGC(tkwin, border, TK_3D_DARK_GC),
+			pts+3, n, CoordModeOrigin);
+		if (n == 2 && once--) {
+		    HDC hdc;
+		    TkWinDCState dcState;
+		    RECT rc;
+
+		    hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
+		    if (nbTabPlcStickBit == TTK_STICK_S) {
+			rc.left = pts[0].x;
+			rc.top = pts[4].y;
+			rc.right = pts[4].x + 1;
+			rc.bottom = pts[0].y+ 1;
+		    } else {
+			rc.left = pts[4].x;
+			rc.top = pts[0].y;
+			rc.right = pts[0].x + 1;
+			rc.bottom = pts[4].y + 1;
+		    }
+		    DrawEdge(hdc, &rc, EDGE_RAISED,
+			    (nbTabPlcStickBit == TTK_STICK_E) ?
+			    BF_BOTTOM : BF_RIGHT);
+		    TkWinReleaseDrawableDC(d, hdc, &dcState);
+		}
+		break;
+	    case TTK_STICK_N:
+	    case TTK_STICK_W:
+		XDrawLines(disp, d,
+			Tk_3DBorderGC(tkwin, border, TK_3D_LIGHT_GC),
+			pts, 2, CoordModeOrigin);
+		XDrawLines(disp, d,
+			Tk_3DBorderGC(tkwin, border, TK_3D_DARK_GC),
+			pts+1, n, CoordModeOrigin);
+		if (n == 4 && once--) {
+		    HDC hdc;
+		    TkWinDCState dcState;
+		    RECT rc;
+
+		    hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
+		    rc.left = pts[0].x;
+		    rc.top = pts[0].y;
+		    rc.right = pts[4].x + 1;
+		    rc.bottom = pts[4].y + 1;
+		    DrawEdge(hdc, &rc, EDGE_RAISED,
+			    (nbTabPlcStickBit == TTK_STICK_W) ?
+			    BF_BOTTOM : BF_RIGHT);
+		    TkWinReleaseDrawableDC(d, hdc, &dcState);
+		}
+		break;
+	}
+
+	switch (nbTabPlcStickBit) {
+	    default:
+	    case TTK_STICK_S:
+		++pts[0].x;  ++pts[1].x;  ++pts[2].y;
+		++pts[3].y;  --pts[4].x;  --pts[5].x;
+		break;
+	    case TTK_STICK_N:
+		++pts[0].x;  ++pts[1].x;  --pts[2].y;
+		--pts[3].y;  --pts[4].x;  --pts[5].x;
+		break;
+	    case TTK_STICK_E:
+		++pts[0].y;  ++pts[1].y;  ++pts[2].x;
+		++pts[3].x;  --pts[4].y;  --pts[5].y;
+		break;
+	    case TTK_STICK_W:
+		++pts[0].y;  ++pts[1].y;  --pts[2].x;
+		--pts[3].x;  --pts[4].y;  --pts[5].y;
+		break;
+	}
+    }
+}
+
+static const Ttk_ElementSpec TabElementSpec = {
+    TK_STYLE_VERSION_2,
+    sizeof(TabElement),
+    TabElementOptions,
+    TabElementSize,
+    TabElementDraw
+};
+
 static void ClientElementSize(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    int *widthPtr, int *heightPtr, Ttk_Padding *paddingPtr)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    TCL_UNUSED(Tk_Window),
+    TCL_UNUSED(int *), /* widthPtr */
+    TCL_UNUSED(int *), /* heightPtr */
+    Ttk_Padding *paddingPtr)
 {
     paddingPtr->left = paddingPtr->right = GetSystemMetrics(SM_CXEDGE);
     paddingPtr->top = paddingPtr->bottom = GetSystemMetrics(SM_CYEDGE);
 }
 
 static void ClientElementDraw(
-    void *clientData, void *elementRecord, Tk_Window tkwin,
-    Drawable d, Ttk_Box b, unsigned int state)
+    TCL_UNUSED(void *), /* clientData */
+    TCL_UNUSED(void *), /* elementRecord */
+    Tk_Window tkwin,
+    Drawable d,
+    Ttk_Box b,
+    TCL_UNUSED(Ttk_State))
 {
     RECT rc = BoxToRect(b);
     TkWinDCState dcState;
     HDC hdc = TkWinGetDrawableDC(Tk_Display(tkwin), d, &dcState);
+
     DrawEdge(hdc, &rc, EDGE_RAISED, BF_RECT | BF_SOFT);
     TkWinReleaseDrawableDC(d, hdc, &dcState);
 }
 
-static Ttk_ElementSpec ClientElementSpec = {
+static const Ttk_ElementSpec ClientElementSpec = {
     TK_STYLE_VERSION_2,
     sizeof(NullElement),
     TtkNullElementOptions,
@@ -686,43 +1019,46 @@ TTK_LAYOUT("TButton",
 TTK_LAYOUT("TCombobox",
     TTK_GROUP("Combobox.field", TTK_FILL_BOTH,
 	TTK_NODE("Combobox.downarrow", TTK_PACK_RIGHT|TTK_FILL_Y)
-	TTK_GROUP("Combobox.padding", TTK_PACK_LEFT|TTK_EXPAND|TTK_FILL_BOTH,
-	    TTK_GROUP("Combobox.focus", TTK_PACK_LEFT|TTK_EXPAND|TTK_FILL_BOTH,
+	TTK_GROUP("Combobox.padding", TTK_FILL_BOTH,
+	    TTK_GROUP("Combobox.focus", TTK_FILL_BOTH,
 		TTK_NODE("Combobox.textarea", TTK_FILL_BOTH)))))
 
 TTK_END_LAYOUT_TABLE
 
 /* ---------------------------------------------------------------------- */
 
-MODULE_SCOPE
-int TtkWinTheme_Init(Tcl_Interp *interp, HWND hwnd)
+MODULE_SCOPE int
+TtkWinTheme_Init(
+    Tcl_Interp *interp,
+    TCL_UNUSED(HWND))
 {
     Ttk_Theme themePtr, parentPtr;
-    FrameControlElementData *fce = FrameControlElements;
+    const FrameControlElementData *fce = FrameControlElements;
 
     parentPtr = Ttk_GetTheme(interp, "alt");
     themePtr = Ttk_CreateTheme(interp, "winnative", parentPtr);
     if (!themePtr) {
-        return TCL_ERROR;
+	return TCL_ERROR;
     }
 
-    Ttk_RegisterElementSpec(themePtr, "border", &BorderElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "Button.border",
+    Ttk_RegisterElement(NULL, themePtr, "border", &BorderElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "Button.border",
 	&ButtonBorderElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "field", &FieldElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "focus", &FocusElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "Combobox.focus",
-    	&ComboboxFocusElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "thumb", &ThumbElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "slider", &SliderElementSpec, NULL);
-    Ttk_RegisterElementSpec(themePtr, "Scrollbar.trough", &TroughElementSpec,
-    	TroughClientDataInit(interp));
+    Ttk_RegisterElement(NULL, themePtr, "field", &FieldElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "focus", &FocusElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "Combobox.focus",
+	&ComboboxFocusElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "thumb", &ThumbElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "slider", &SliderElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "Scrollbar.trough", &TroughElementSpec,
+	TroughClientDataInit(interp));
 
-    Ttk_RegisterElementSpec(themePtr, "client", &ClientElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "tab", &TabElementSpec, NULL);
+    Ttk_RegisterElement(NULL, themePtr, "client", &ClientElementSpec, NULL);
 
     for (fce = FrameControlElements; fce->name != 0; ++fce) {
-	Ttk_RegisterElementSpec(themePtr, fce->name,
-		&FrameControlElementSpec, fce);
+	Ttk_RegisterElement(NULL, themePtr, fce->name,
+		&FrameControlElementSpec, (void *)fce);
     }
 
     Ttk_RegisterLayouts(themePtr, LayoutTable);

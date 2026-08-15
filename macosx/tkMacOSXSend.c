@@ -3,7 +3,7 @@
  *
  *	This file provides procedures that implement the "send" command,
  *	allowing commands to be passed from interpreter to interpreter. This
- *	current implementation for the Mac has most functionality stubed out.
+ *	current implementation for the Mac has most functionality stubbed out.
  *
  *	The current plan, which we have not had time to implement, is for the
  *	first Wish app to create a gestalt of type 'WIsH'. This gestalt will
@@ -22,10 +22,10 @@
  *	may not get done for awhile. So this sketch is offered for the brave
  *	to attempt if they need the functionality...
  *
- * Copyright (c) 1989-1994 The Regents of the University of California.
- * Copyright (c) 1994-1998 Sun Microsystems, Inc.
- * Copyright 2001-2009, Apple Inc.
- * Copyright (c) 2005-2009 Daniel A. Steffen <das@users.sourceforge.net>
+ * Copyright © 1989-1994 The Regents of the University of California.
+ * Copyright © 1994-1998 Sun Microsystems, Inc.
+ * Copyright © 2001-2009 Apple Inc.
+ * Copyright © 2005-2009 Daniel A. Steffen <das@users.sourceforge.net>
  *
  * See the file "license.terms" for information on usage and redistribution
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -51,7 +51,7 @@ typedef struct RegisteredInterp {
  * A registry of all interpreters for a display is kept in a property
  * "InterpRegistry" on the root window of the display. It is organized as a
  * series of zero or more concatenated strings (in no particular order), each
- * of the form
+ * of the form:
  *	window space name '\0'
  * where "window" is the hex id of the comm. window to use to talk to an
  * interpreter named "name".
@@ -78,7 +78,7 @@ typedef struct NameRegistry {
 				 * XFree; zero means use ckfree. */
 } NameRegistry;
 
-static int initialized = 0; /* A flag to denote if we have initialized
+static int initialized = 0;	/* A flag to denote if we have initialized
 				 * yet. */
 
 static RegisteredInterp *interpListPtr = NULL;
@@ -209,7 +209,8 @@ Tk_SetAppName(
 {
     TkWindow *winPtr = (TkWindow *) tkwin;
     Tcl_Interp *interp = winPtr->mainPtr->interp;
-    int i, suffix, offset, result;
+    int suffix, result;
+    Tcl_Size i, offset;
     RegisteredInterp *riPtr, *prevPtr;
     const char *actualName;
     Tcl_DString dString;
@@ -260,14 +261,14 @@ Tk_SetAppName(
 	interpName = Tcl_GetString(interpNamePtr);
 	if (strcmp(actualName, interpName) == 0) {
 	    if (suffix == 1) {
-		Tcl_DStringAppend(&dString, name, -1);
+		Tcl_DStringAppend(&dString, name, TCL_INDEX_NONE);
 		Tcl_DStringAppend(&dString, " #", 2);
 		offset = Tcl_DStringLength(&dString);
-		Tcl_DStringSetLength(&dString, offset + 10);
+		Tcl_DStringSetLength(&dString, offset + TCL_INTEGER_SPACE);
 		actualName = Tcl_DStringValue(&dString);
 	    }
 	    suffix++;
-	    sprintf(Tcl_DStringValue(&dString) + offset, "%d", suffix);
+	    snprintf(Tcl_DStringValue(&dString) + offset, TCL_INTEGER_SPACE, "%d", suffix);
 	    i = 0;
 	} else {
 	    i++;
@@ -281,9 +282,9 @@ Tk_SetAppName(
      * We have found a unique name. Now add it to the registry.
      */
 
-    riPtr = ckalloc(sizeof(RegisteredInterp));
+    riPtr = (RegisteredInterp *)ckalloc(sizeof(RegisteredInterp));
     riPtr->interp = interp;
-    riPtr->name = ckalloc(strlen(actualName) + 1);
+    riPtr->name = (char *)ckalloc(strlen(actualName) + 1);
     riPtr->nextPtr = interpListPtr;
     interpListPtr = riPtr;
     strcpy(riPtr->name, actualName);
@@ -320,33 +321,42 @@ Tk_SetAppName(
 
 int
 Tk_SendObjCmd(
-    ClientData clientData,	/* Used only for deletion */
+    TCL_UNUSED(void *),	/* Not used */
     Tcl_Interp *interp,		/* The interp we are sending from */
     int objc,			/* Number of arguments */
     Tcl_Obj *const objv[])	/* The arguments */
 {
-    const char *const sendOptions[] = {"-async", "-displayof", "-", NULL};
-    char *stringRep, *destName;
+    enum {
+	SEND_ASYNC, SEND_DISPLAYOF, SEND_LAST
+    };
+    static const char *const sendOptions[] = {
+	"-async",   "-displayof",   "--",  NULL
+    };
+    const char *stringRep, *destName;
     /*int async = 0;*/
-    int i, index, firstArg;
+    int i, firstArg, index;
     RegisteredInterp *riPtr;
     Tcl_Obj *listObjPtr;
     int result = TCL_OK;
 
-    for (i = 1; i < (objc - 1); ) {
+    /*
+     * Process the command options.
+     */
+
+    for (i = 1; i < (objc - 1); i++) {
 	stringRep = Tcl_GetString(objv[i]);
 	if (stringRep[0] == '-') {
 	    if (Tcl_GetIndexFromObjStruct(interp, objv[i], sendOptions,
 		    sizeof(char *), "option", 0, &index) != TCL_OK) {
 		return TCL_ERROR;
 	    }
-	    if (index == 0) {
+	    if (index == SEND_ASYNC) {
 		/*async = 1;*/
+	    } else if (index == SEND_DISPLAYOF) {
 		i++;
-	    } else if (index == 1) {
-		i += 2;
-	    } else {
+	    } else /* if (index == SEND_LAST) */ {
 		i++;
+		break;
 	    }
 	} else {
 	    break;
@@ -461,7 +471,7 @@ Tk_SendObjCmd(
 int
 TkGetInterpNames(
     Tcl_Interp *interp,		/* Interpreter for returning a result. */
-    Tk_Window tkwin)		/* Window whose display is to be used for the
+    TCL_UNUSED(Tk_Window))		/* Window whose display is to be used for the
 				 * lookup. */
 {
     Tcl_Obj *listObjPtr;
@@ -471,7 +481,7 @@ TkGetInterpNames(
     riPtr = interpListPtr;
     while (riPtr != NULL) {
 	Tcl_ListObjAppendElement(interp, listObjPtr,
-		Tcl_NewStringObj(riPtr->name, -1));
+		Tcl_NewStringObj(riPtr->name, TCL_INDEX_NONE));
 	riPtr = riPtr->nextPtr;
     }
 
@@ -498,9 +508,7 @@ TkGetInterpNames(
 
 static int
 SendInit(
-    Tcl_Interp *interp)		/* Interpreter to use for error reporting (no
-				 * errors are ever returned, but the
-				 * interpreter is needed anyway). */
+    TCL_UNUSED(Tcl_Interp *))		/* Not used */
 {
     return TCL_OK;
 }

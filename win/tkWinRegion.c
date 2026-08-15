@@ -3,7 +3,7 @@
  *
  *	Tk Region emulation code.
  *
- * Copyright (c) 1995 Sun Microsystems, Inc.
+ * Copyright © 1995 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -11,18 +11,11 @@
 
 #include "tkWinInt.h"
 
-#undef TkCreateRegion
-#undef TkDestroyRegion
-#undef TkClipBox
-#undef TkIntersectRegion
-#undef TkUnionRectWithRegion
-#undef TkRectInRegion
-#undef TkSubtractRegion
 
 /*
  *----------------------------------------------------------------------
  *
- * TkCreateRegion --
+ * XCreateRegion --
  *
  *	Construct an empty region.
  *
@@ -36,17 +29,17 @@
  */
 
 TkRegion
-TkCreateRegion(void)
+XCreateRegion(void)
 {
     RECT rect;
     memset(&rect, 0, sizeof(RECT));
-    return (TkRegion) CreateRectRgnIndirect(&rect);
+    return (TkRegion)CreateRectRgnIndirect(&rect);
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * TkDestroyRegion --
+ * XDestroyRegion --
  *
  *	Destroy the specified region.
  *
@@ -59,17 +52,18 @@ TkCreateRegion(void)
  *----------------------------------------------------------------------
  */
 
-void
-TkDestroyRegion(
+int
+XDestroyRegion(
     TkRegion r)
 {
     DeleteObject((HRGN) r);
+    return Success;
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * TkClipBox --
+ * XClipBox --
  *
  *	Computes the bounding box of a region.
  *
@@ -82,8 +76,8 @@ TkDestroyRegion(
  *----------------------------------------------------------------------
  */
 
-void
-TkClipBox(
+int
+XClipBox(
     TkRegion r,
     XRectangle* rect_return)
 {
@@ -94,12 +88,13 @@ TkClipBox(
     rect_return->y = (short) rect.top;
     rect_return->width = (short) (rect.right - rect.left);
     rect_return->height = (short) (rect.bottom - rect.top);
+    return Success;
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * TkIntersectRegion --
+ * XIntersectRegion --
  *
  *	Compute the intersection of two regions.
  *
@@ -112,19 +107,20 @@ TkClipBox(
  *----------------------------------------------------------------------
  */
 
-void
-TkIntersectRegion(
+int
+XIntersectRegion(
     TkRegion sra,
     TkRegion srb,
     TkRegion dr_return)
 {
     CombineRgn((HRGN) dr_return, (HRGN) sra, (HRGN) srb, RGN_AND);
+    return Success;
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * TkUnionRectWithRegion --
+ * XUnionRectWithRegion --
  *
  *	Create the union of a source region and a rectangle.
  *
@@ -137,8 +133,8 @@ TkIntersectRegion(
  *----------------------------------------------------------------------
  */
 
-void
-TkUnionRectWithRegion(
+int
+XUnionRectWithRegion(
     XRectangle *rectangle,
     TkRegion src_region,
     TkRegion dest_region_return)
@@ -149,6 +145,7 @@ TkUnionRectWithRegion(
     CombineRgn((HRGN) dest_region_return, (HRGN) src_region,
 	    (HRGN) rectRgn, RGN_OR);
     DeleteObject(rectRgn);
+    return Success;
 }
 
 /*
@@ -225,7 +222,7 @@ TkpBuildRegionFromAlphaData(
 /*
  *----------------------------------------------------------------------
  *
- * TkRectInRegion --
+ * XRectInRegion --
  *
  *	Test whether a given rectangle overlaps with a region.
  *
@@ -240,7 +237,7 @@ TkpBuildRegionFromAlphaData(
  */
 
 int
-TkRectInRegion(
+XRectInRegion(
     TkRegion r,			/* Region to inspect */
     int x, int y,		/* Top-left of rectangle */
     unsigned int width,		/* Width of rectangle */
@@ -257,7 +254,7 @@ TkRectInRegion(
 /*
  *----------------------------------------------------------------------
  *
- * TkSubtractRegion --
+ * XSubtractRegion --
  *
  *	Compute the set-difference of two regions.
  *
@@ -270,13 +267,38 @@ TkRectInRegion(
  *----------------------------------------------------------------------
  */
 
-void
-TkSubtractRegion(
+int
+XSubtractRegion(
     TkRegion sra,
     TkRegion srb,
     TkRegion dr_return)
 {
     CombineRgn((HRGN) dr_return, (HRGN) sra, (HRGN) srb, RGN_DIFF);
+    return Success;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkpCopyRegion --
+ *
+ *  Makes the destination region a copy of the source region.
+ *
+ * Results:
+ *	None.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TkpCopyRegion(
+    TkRegion dst,
+    TkRegion src)
+{
+    CombineRgn((HRGN)dst, (HRGN)src, NULL, RGN_COPY);
 }
 
 /*

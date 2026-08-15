@@ -7,7 +7,7 @@ if {![info exists widgetDemo]} {
     error "This script should be run from the \"widget\" demo."
 }
 
-package require Tk
+package require tk
 
 # loadDir --
 # This procedure reloads the directory listbox from the directory
@@ -55,8 +55,14 @@ proc loadImage {w x y} {
     global dirName
 
     set file [file join $dirName [$w.f.list get @$x,$y]]
+    set opts [list -file $file]
+    if {[string tolower [file extension $file]] eq ".svg"} {
+	lappend opts -format $tk::svgFmt
+    } else {
+	lappend opts -format {}
+    }
     if {[catch {
-	image2a configure -file $file
+	image2a configure {*}$opts
     }]} then {
 	# Mark the file as not loadable
 	$w.f.list itemconfigure @$x,$y -bg \#c00000 -selectbackground \#ff0000
@@ -92,10 +98,10 @@ pack $w.dir.b -side left -fill y    -padx {0 2m} -pady 2m
 labelframe $w.f -text "File:" -padx 2m -pady 2m
 
 listbox $w.f.list -width 20 -height 10 -yscrollcommand "$w.f.scroll set"
-scrollbar $w.f.scroll -command "$w.f.list yview"
+ttk::scrollbar $w.f.scroll -command "$w.f.list yview"
 pack $w.f.list $w.f.scroll -side left -fill y -expand 1
-$w.f.list insert 0 earth.gif earthris.gif teapot.ppm
-bind $w.f.list <Double-1> "loadImage $w %x %y"
+$w.f.list insert 0 earth.gif earthris.gif teapot.ppm Tcl.svg
+bind $w.f.list <Double-Button-1> "loadImage $w %x %y"
 
 catch {image delete image2a}
 image create photo image2a

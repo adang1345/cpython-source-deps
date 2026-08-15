@@ -3,17 +3,18 @@
  *
  *	This file contains the basic Mac OS X Event handling routines.
  *
- * Copyright (c) 1995-1997 Sun Microsystems, Inc.
- * Copyright 2001-2009, Apple Inc.
- * Copyright (c) 2005-2009 Daniel A. Steffen <das@users.sourceforge.net>
+ * Copyright © 1995-1997 Sun Microsystems, Inc.
+ * Copyright © 2001-2009 Apple Inc.
+ * Copyright © 2005-2009 Daniel A. Steffen <das@users.sourceforge.net>
  *
  * See the file "license.terms" for information on usage and redistribution
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  */
 
 #include "tkMacOSXPrivate.h"
-#include "tkMacOSXEvent.h"
+#include "tkMacOSXInt.h"
 #include "tkMacOSXDebug.h"
+#include "tkMacOSXConstants.h"
 
 #pragma mark TKApplication(TKEvent)
 
@@ -26,40 +27,40 @@ enum {
 - (NSEvent *) tkProcessEvent: (NSEvent *) theEvent
 {
 #ifdef TK_MAC_DEBUG_EVENTS
-    TKLog(@"-[%@(%p) %s] %@", [self class], self, _cmd, theEvent);
+    TKLog(@"-[%@(%p) %s] %@", [self class], self, sel_getName(_cmd), theEvent);
 #endif
     NSEvent	    *processedEvent = theEvent;
     NSEventType	    type = [theEvent type];
     NSInteger	    subtype;
-    NSUInteger	    flags;
 
     switch ((NSInteger)type) {
     case NSAppKitDefined:
-        subtype = [theEvent subtype];
+	subtype = [theEvent subtype];
 
 	switch (subtype) {
+	    /* Ignored at the moment. */
 	case NSApplicationActivatedEventType:
 	    break;
 	case NSApplicationDeactivatedEventType:
 	    break;
 	case NSWindowExposedEventType:
+	    break;
 	case NSScreenChangedEventType:
 	    break;
 	case NSWindowMovedEventType:
 	    break;
-        case NSWindowWillMoveEventType:
-            break;
+	case NSWindowWillMoveEventType:
+	    break;
 
-        default:
-            break;
+	default:
+	    break;
 	}
-	break;
+	break; /* AppkitEvent. Return theEvent */
     case NSKeyUp:
     case NSKeyDown:
     case NSFlagsChanged:
-	flags = [theEvent modifierFlags];
 	processedEvent = [self tkProcessKeyEvent:theEvent];
-	break;
+	break; /* Key event.  Return the processed event. */
     case NSLeftMouseDown:
     case NSLeftMouseUp:
     case NSRightMouseDown:
@@ -76,10 +77,10 @@ enum {
     case NSTabletPoint:
     case NSTabletProximity:
 	processedEvent = [self tkProcessMouseEvent:theEvent];
-	break;
+	break; /* Mouse event.  Return the processed event. */
 #if 0
     case NSSystemDefined:
-        subtype = [theEvent subtype];
+	subtype = [theEvent subtype];
 	break;
     case NSApplicationDefined: {
 	id win;
@@ -87,62 +88,45 @@ enum {
 	break;
 	}
     case NSCursorUpdate:
-        break;
-#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+	break;
     case NSEventTypeGesture:
     case NSEventTypeMagnify:
     case NSEventTypeRotate:
     case NSEventTypeSwipe:
     case NSEventTypeBeginGesture:
     case NSEventTypeEndGesture:
-        break;
-#endif
+	break;
 #endif
 
     default:
-	break;
+	break; /* return theEvent */
     }
     return processedEvent;
 }
 @end
-
 #pragma mark -
-
-/*
- *----------------------------------------------------------------------
- *
- * TkMacOSXFlushWindows --
- *
- *	This routine flushes all the windows of the application. It is
- *	called by XSync().
- *
- * Results:
- *	None.
- *
- * Side effects:
- *	Flushes all Carbon windows
- *
- *----------------------------------------------------------------------
- */
 
-MODULE_SCOPE void
-TkMacOSXFlushWindows(void)
+int
+XSync(
+    Display *display,
+    TCL_UNUSED(Bool))
 {
-    NSInteger windowCount;
-    NSInteger *windowNumbers;
+    /*
+     *  The main use of XSync is by the update command, which alternates
+     *  between running an event loop to process all events without waiting and
+     *  calling XSync on all displays until no events are left.  On X11 the
+     *  call to XSync might cause the window manager to generate more events
+     *  which would then get processed. Apparently this process stabilizes on
+     *  X11, leaving the window manager in a state where all events have been
+     *  generated and no additional events can be genereated by updating widgets.
+     *
+     *  It is not clear what the Aqua port should do when XSync is called, but
+     *  currently the best option seems to be to do nothing.  (See ticket
+     *  [da5f2266df].)
+     */
 
-    NSCountWindows(&windowCount);
-    if(windowCount) {
-	windowNumbers = ckalloc(windowCount * sizeof(NSInteger));
-	NSWindowList(windowCount, windowNumbers);
-	for (NSInteger index = 0; index < windowCount; index++) {
-	    NSWindow *w = [NSApp windowWithWindowNumber:windowNumbers[index]];
-	    if (TkMacOSXGetXWindow(w)) {
-		[w flushWindow];
-	    }
-	}
-	ckfree(windowNumbers);
-    }
+    LastKnownRequestProcessed(display)++;
+    return 0;
 }
 
 /*

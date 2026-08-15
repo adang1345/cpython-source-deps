@@ -1,26 +1,59 @@
 # This file is a Tcl script to test out the "listbox" command
-# of Tk.  It is organized in the standard fashion for Tcl tests.
+# of Tk.
 #
-# Copyright (c) 1993-1994 The Regents of the University of California.
-# Copyright (c) 1994-1997 Sun Microsystems, Inc.
-# Copyright (c) 1998-1999 by Scriptics Corporation.
+# Copyright © 1993-1994 The Regents of the University of California.
+# Copyright © 1994-1997 Sun Microsystems, Inc.
+# Copyright © 1998-1999 Scriptics Corporation.
 # All rights reserved.
 
-package require tcltest 2.2
-eval tcltest::configure $argv
-tcltest::loadTestedCommands
-namespace import -force tcltest::test
+#
+# TESTFILE INITIALIZATION
+#
 
-set fixed {Courier -12}
+package require tcltest 2.2; # needed in mode -singleproc 0
 
-proc record {name args} {
-    global log
-    lappend log [format {%s %.6g %.6g} $name {*}$args]
-}
+# Load the main script main.tcl, which takes care of:
+# - setup for the application and the root window
+# - importing commands from the tcltest namespace
+# - loading of the testutils mechanism along with its utility procs
+# - loading of Tk specific test constraints (additionally to constraints
+#   provided by the package tcltest)
+source [file join [tcltest::configure -testdir] main.tcl]
+
+# Ensure a pristine initial window state
+resetWindows
+
+#
+# LOCAL UTILITY PROCS
+#
 
 proc getsize w {
     regexp {(^[^+-]*)} [wm geometry $w] foo x
     return $x
+}
+
+# mkPartial --
+#
+# Creates a second listbox for checking things related
+# to partially visible lines.
+#
+proc mkPartial {{w .partial}} {
+    destroy $w
+    toplevel $w
+    wm geometry $w +0+0
+    listbox $w.l -width 30 -height 5
+    pack $w.l -expand 1 -fill both
+    $w.l insert end one two three four five six seven eight nine ten \
+	    eleven twelve thirteen fourteen fifteen
+    update
+    scan [wm geometry $w] "%dx%d" width height
+    wm geometry $w ${width}x[expr {$height-3}]
+    update
+}
+
+proc record {name args} {
+    global log
+    lappend log [format {%s %.6g %.6g} $name {*}$args]
 }
 
 proc resetGridInfo {} {
@@ -36,35 +69,29 @@ proc resetGridInfo {} {
     wm deiconify .
 }
 
-# Procedure that creates a second listbox for checking things related
-# to partially visible lines.
+#
+# COMMON TEST SETUP
+#
 
-proc mkPartial {{w .partial}} {
-    destroy $w
-    toplevel $w
-    wm geometry $w +0+0
-    listbox $w.l -width 30 -height 5
-    pack $w.l -expand 1 -fill both
-    $w.l insert end one two three four five six seven eight nine ten \
-	    eleven twelve thirteen fourteen fifteen
-    update
-    scan [wm geometry $w] "%dx%d" width height
-    wm geometry $w ${width}x[expr $height-3]
-    update
-}
+set fixed {Courier -12}
 
 # Create entries in the option database to be sure that geometry options
 # like border width have predictable values.
-
 option add *Listbox.borderWidth 2
+option add *Listbox.selectBorderWidth 1
 option add *Listbox.highlightThickness 2
 option add *Listbox.font {Helvetica -12 bold}
 
-# Listbox used in 3.* configuration options tests
 listbox .l
 pack .l
 update
+
 resetGridInfo
+
+#
+# TESTS
+#
+
 test listbox-1.1 {configuration options} -body {
     .l configure -activestyle under
     list [lindex [.l configure -activestyle] 4] [.l cget -activestyle]
@@ -91,7 +118,7 @@ test listbox-1.5 {configuration options} -body {
 } -result {4 4}
 test listbox-1.6 {configuration options} -body {
     .l configure -bd badValue
-} -returnCodes error -result {bad screen distance "badValue"}
+} -returnCodes error -result {expected screen distance but got "badValue"}
 test listbox-1.7 {configuration options} -body {
     .l configure -bg #ff0000
     list [lindex [.l configure -bg] 4] [.l cget -bg]
@@ -106,10 +133,10 @@ test listbox-1.9 {configuration options} -body {
     list [lindex [.l configure -borderwidth] 4] [.l cget -borderwidth]
 } -cleanup {
     .l configure -borderwidth [lindex [.l configure -borderwidth] 3]
-} -result {1 1}
+} -result {1.3 1.3}
 test listbox-1.10 {configuration options} -body {
     .l configure -borderwidth badValue
-} -returnCodes error -result {bad screen distance "badValue"}
+} -returnCodes error -result {expected screen distance but got "badValue"}
 test listbox-1.11 {configuration options} -body {
     .l configure -cursor arrow
     list [lindex [.l configure -cursor] 4] [.l cget -cursor]
@@ -196,13 +223,28 @@ test listbox-1.29 {configuration options} -body {
 } -result {6 6}
 test listbox-1.30 {configuration options} -body {
     .l configure -highlightthickness bogus
-} -returnCodes error -result {bad screen distance "bogus"}
+} -returnCodes error -result {expected screen distance but got "bogus"}
 test listbox-1.31 {configuration options} -body {
     .l configure -highlightthickness -2
     list [lindex [.l configure -highlightthickness] 4] [.l cget -highlightthickness]
 } -cleanup {
     .l configure -highlightthickness [lindex [.l configure -highlightthickness] 3]
 } -result {0 0}
+test listbox-1.32.1 {configuration options} -setup {
+    set res {}
+} -body {
+    .l configure -justify left
+    set res [list [lindex [.l configure -justify] 4] [.l cget -justify]]
+    .l configure -justify center
+    lappend res [lindex [.l configure -justify] 4] [.l cget -justify]
+    .l configure -justify right
+    lappend res [lindex [.l configure -justify] 4] [.l cget -justify]
+} -cleanup {
+    .l configure -justify [lindex [.l configure -justify] 3]
+} -result {left left center center right right}
+test listbox-1.32.2 {configuration options} -body {
+    .l configure -justify bogus
+} -returnCodes error -result {bad justification "bogus": must be left, right, or center}
 test listbox-1.33 {configuration options} -body {
     .l configure -relief groove
     list [lindex [.l configure -relief] 4] [.l cget -relief]
@@ -226,10 +268,10 @@ test listbox-1.37 {configuration options} -body {
     list [lindex [.l configure -selectborderwidth] 4] [.l cget -selectborderwidth]
 } -cleanup {
     .l configure -selectborderwidth [lindex [.l configure -selectborderwidth] 3]
-} -result {1 1}
+} -result {1.3 1.3}
 test listbox-1.38 {configuration options} -body {
     .l configure -selectborderwidth badValue
-} -returnCodes error -result {bad screen distance "badValue"}
+} -returnCodes error -result {expected screen distance but got "badValue"}
 test listbox-1.39 {configuration options} -body {
     .l configure -selectforeground #654321
     list [lindex [.l configure -selectforeground] 4] [.l cget -selectforeground]
@@ -333,14 +375,18 @@ test listbox-2.5 {Tk_ListboxCmd procedure} -setup {
     destroy .l
 } -result {.l}
 
-
-# Listbox used in 3.1 -3.115 tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-3.1 - 3.115
+#
 destroy .l
 listbox .l -width 20 -height 5 -bd 4 -highlightthickness 1 -selectborderwidth 2
 pack .l
 .l insert 0 el0 el1 el2 el3 el4 el5 el6 el7 el8 el9 el10 el11 el12 el13 el14 \
 	el15 el16 el17
 update
+
 test listbox-3.1 {ListboxWidgetCmd procedure} -body {
     .l
 } -returnCodes error -result {wrong # args: should be ".l option ?arg ...?"}
@@ -352,23 +398,23 @@ test listbox-3.3 {ListboxWidgetCmd procedure, "activate" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l activate index"}
 test listbox-3.4 {ListboxWidgetCmd procedure, "activate" option} -body {
     .l activate fooey
-} -returnCodes error -result {bad listbox index "fooey": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "fooey": must be active, anchor, end, @x,y, or an index}
 test listbox-3.5 {ListboxWidgetCmd procedure, "activate" option} -body {
     .l activate 3
     .l index active
 } -result 3
 test listbox-3.6 {ListboxWidgetCmd procedure, "activate" option} -body {
-    .l activate -1
+    .l activate {}
     .l index active
-} -result {0}
+} -result 0
 test listbox-3.7 {ListboxWidgetCmd procedure, "activate" option} -body {
     .l activate 30
     .l index active
-} -result {17}
+} -result 17
 test listbox-3.8 {ListboxWidgetCmd procedure, "activate" option} -body {
     .l activate end
     .l index active
-} -result {17}
+} -result 17
 test listbox-3.9 {ListboxWidgetCmd procedure, "bbox" option} -body {
     .l bbox
 } -returnCodes error -result {wrong # args: should be ".l bbox index"}
@@ -377,7 +423,7 @@ test listbox-3.10 {ListboxWidgetCmd procedure, "bbox" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l bbox index"}
 test listbox-3.11 {ListboxWidgetCmd procedure, "bbox" option} -body {
     .l bbox fooey
-} -returnCodes error -result {bad listbox index "fooey": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "fooey": must be active, anchor, end, @x,y, or an index}
 test listbox-3.12 {ListboxWidgetCmd procedure, "bbox" option} -body {
     .l yview 3
     update
@@ -410,7 +456,7 @@ test listbox-3.15 {ListboxWidgetCmd procedure, "bbox" option} -constraints {
 } -body {
     .l yview 0
     update
-    list [.l bbox -1] [.l bbox 0]
+    list [.l bbox {}] [.l bbox 0]
 } -result {{} {7 7 17 14}}
 test listbox-3.16 {ListboxWidgetCmd procedure, "bbox" option} -constraints {
 	fonts
@@ -441,6 +487,58 @@ test listbox-3.18 {ListboxWidgetCmd procedure, "bbox" option, partial last line}
     mkPartial
     list [.partial.l bbox 3] [.partial.l bbox 4]
 } -result {{5 56 24 14} {5 73 23 14}}
+test listbox-3.18a {ListboxWidgetCmd procedure, "bbox" option, justified} -constraints {
+	fonts
+} -setup {
+    destroy .top.l .top
+    unset -nocomplain res
+} -body {
+    toplevel .top
+    listbox .top.l -justify left
+    .top.l insert end Item1 LongerItem2 MuchLongerItem3
+    pack .top.l
+    update
+    lappend res [.top.l bbox 0] [.top.l bbox 1] [.top.l bbox 2]
+    .top.l configure -justify center
+    lappend res [.top.l bbox 0] [.top.l bbox 1] [.top.l bbox 2]
+    .top.l configure -justify right
+    lappend res [.top.l bbox 0] [.top.l bbox 1] [.top.l bbox 2]
+} -cleanup {
+    destroy .top.l .top
+    unset -nocomplain res
+} -result [list \
+    {5 5 34 14} {5 22 74 14} {5 39 106 14}     \
+    {58 5 34 14} {38 22 74 14} {22 39 106 14}  \
+    {111 5 34 14} {71 22 74 14} {39 39 106 14} \
+]
+test listbox-3.18b {ListboxWidgetCmd procedure, "bbox" option, justified, non-default borderwidth} -setup {
+    destroy .top.l .top
+    unset -nocomplain lres res
+} -body {
+    # This test checks whether all "x" values from bbox for different size
+    # items with different justification settings are all positive or zero
+    # This checks a bit the calculation of this x value with non-default
+    # borders widths of the listbox
+    toplevel .top
+    listbox .top.l -justify left -borderwidth 17 -highlightthickness 19 -selectborderwidth 22
+    .top.l insert end Item1 LongerItem2 MuchLongerItem3
+    .top.l selection set 1
+    pack .top.l
+    update
+    lappend lres [.top.l bbox 0] [.top.l bbox 1] [.top.l bbox 2]
+    .top.l configure -justify center
+    lappend lres [.top.l bbox 0] [.top.l bbox 1] [.top.l bbox 2]
+    .top.l configure -justify right
+    lappend lres [.top.l bbox 0] [.top.l bbox 1] [.top.l bbox 2]
+    set res 1
+    for {set i 0} {$i < [llength $lres]} {incr i 4} {
+	set res [expr {$res * [expr {[lindex $lres $i] >= 0}] }]
+    }
+    set res
+} -cleanup {
+    destroy .top.l .top
+    unset -nocomplain lres res
+} -result 1
 test listbox-3.19 {ListboxWidgetCmd procedure, "cget" option} -body {
     .l cget
 } -returnCodes error -result {wrong # args: should be ".l cget option"}
@@ -452,10 +550,10 @@ test listbox-3.21 {ListboxWidgetCmd procedure, "cget" option} -body {
 } -returnCodes error -result {unknown option "-gorp"}
 test listbox-3.22 {ListboxWidgetCmd procedure, "cget" option} -body {
     .l cget -setgrid
-} -result {0}
+} -result 0
 test listbox-3.23 {ListboxWidgetCmd procedure, "configure" option} -body {
     llength [.l configure]
-} -result {27}
+} -result 28
 test listbox-3.24 {ListboxWidgetCmd procedure, "configure" option} -body {
     .l configure -gorp
 } -returnCodes error -result {unknown option "-gorp"}
@@ -490,10 +588,10 @@ test listbox-3.31 {ListboxWidgetCmd procedure, "delete" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l delete firstIndex ?lastIndex?"}
 test listbox-3.32 {ListboxWidgetCmd procedure, "delete" option} -body {
     .l delete badIndex
-} -returnCodes error -result {bad listbox index "badIndex": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "badIndex": must be active, anchor, end, @x,y, or an index}
 test listbox-3.33 {ListboxWidgetCmd procedure, "delete" option} -body {
     .l delete 2 123ab
-} -returnCodes error -result {bad listbox index "123ab": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "123ab": must be active, anchor, end, @x,y, or an index}
 test listbox-3.34 {ListboxWidgetCmd procedure, "delete" option} -setup {
     destroy .l2
 } -body {
@@ -519,7 +617,7 @@ test listbox-3.36 {ListboxWidgetCmd procedure, "delete" option} -setup {
 } -body {
     listbox .l2
     .l2 insert 0 el0 el1 el2 el3 el4 el5 el6 el7
-    .l2 delete -3 2
+    .l2 delete {} 2
     .l2 get 0 end
 } -cleanup {
     destroy .l2
@@ -529,7 +627,7 @@ test listbox-3.37 {ListboxWidgetCmd procedure, "delete" option} -setup {
 } -body {
     listbox .l2
     .l2 insert 0 el0 el1 el2 el3 el4 el5 el6 el7
-    .l2 delete -3 -1
+    .l2 delete {} {}
     .l2 get 0 end
 } -cleanup {
     destroy .l2
@@ -582,10 +680,10 @@ test listbox-3.43 {ListboxWidgetCmd procedure, "get" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l get firstIndex ?lastIndex?"}
 test listbox-3.44 {ListboxWidgetCmd procedure, "get" option} -body {
     .l get 2.4
-} -returnCodes error -result {bad listbox index "2.4": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "2.4": must be active, anchor, end, @x,y, or an index}
 test listbox-3.45 {ListboxWidgetCmd procedure, "get" option} -body {
     .l get end bogus
-} -returnCodes error -result {bad listbox index "bogus": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "bogus": must be active, anchor, end, @x,y, or an index}
 test listbox-3.46 {ListboxWidgetCmd procedure, "get" option} -setup {
     destroy .l2
 } -body {
@@ -613,13 +711,13 @@ test listbox-3.48 {ListboxWidgetCmd procedure, "get" option} -setup {
     destroy .l2
 } -result {{two words} el4 el5 el6 el7}
 test listbox-3.49 {ListboxWidgetCmd procedure, "get" option} -body {
-    .l get -1
+    .l get {}
 } -result {}
 test listbox-3.50 {ListboxWidgetCmd procedure, "get" option} -body {
-    .l get -2 -1
+    .l get {} {}
 } -result {}
 test listbox-3.51 {ListboxWidgetCmd procedure, "get" option} -body {
-    .l get -2 3
+    .l get {} 3
 } -result {el0 el1 el2 el3}
 test listbox-3.52 {ListboxWidgetCmd procedure, "get" option} -body {
     .l get 12 end
@@ -644,25 +742,25 @@ test listbox-3.58 {ListboxWidgetCmd procedure, "index" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l index index"}
 test listbox-3.59 {ListboxWidgetCmd procedure, "index" option} -body {
     .l index @
-} -returnCodes error -result {bad listbox index "@": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@": must be active, anchor, end, @x,y, or an index}
 test listbox-3.60 {ListboxWidgetCmd procedure, "index" option} -body {
     .l index 2
 } -result 2
 test listbox-3.61 {ListboxWidgetCmd procedure, "index" option} -body {
-    .l index -1
-} -result {-1}
+    expr {[.l index {}]<0}
+} -result 1
 test listbox-3.62 {ListboxWidgetCmd procedure, "index" option} -body {
     .l index end
 } -result 18
 test listbox-3.63 {ListboxWidgetCmd procedure, "index" option} -body {
     .l index 34
-} -result 34
+} -result 18
 test listbox-3.64 {ListboxWidgetCmd procedure, "insert" option} -body {
     .l insert
 } -returnCodes error -result {wrong # args: should be ".l insert index ?element ...?"}
 test listbox-3.65 {ListboxWidgetCmd procedure, "insert" option} -body {
     .l insert badIndex
-} -returnCodes error -result {bad listbox index "badIndex": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "badIndex": must be active, anchor, end, @x,y, or an index}
 test listbox-3.66 {ListboxWidgetCmd procedure, "insert" option} -setup {
     destroy .l2
 } -body {
@@ -678,7 +776,7 @@ test listbox-3.67 {ListboxWidgetCmd procedure, "insert" option} -setup {
 } -body {
     listbox .l2
     .l2 insert end a b c
-    .l2 insert -1 x
+    .l2 insert 0 x
     .l2 get 0 end
 } -cleanup {
     destroy .l2
@@ -715,7 +813,7 @@ test listbox-3.72 {ListboxWidgetCmd procedure, "nearest" option} -body {
 test listbox-3.73 {ListboxWidgetCmd procedure, "nearest" option} -body {
     .l yview 3
     .l nearest 1000
-} -result {7}
+} -result 7
 test listbox-3.74 {ListboxWidgetCmd procedure, "scan" option} -body {
     .l scan a b
 } -returnCodes error -result {wrong # args: should be ".l scan mark|dragto x y"}
@@ -748,7 +846,7 @@ test listbox-3.78 {ListboxWidgetCmd procedure, "scan" option} -constraints {
 } -result {{0.249364 0.427481} {0.0714286 0.428571}}
 test listbox-3.79 {ListboxWidgetCmd procedure, "scan" option} -body {
     .l scan foo 2 4
-} -returnCodes error -result {bad option "foo": must be mark or dragto}
+} -returnCodes error -result {bad option "foo": must be dragto or mark}
 test listbox-3.80 {ListboxWidgetCmd procedure, "see" option} -body {
     .l see
 } -returnCodes error -result {wrong # args: should be ".l see index"}
@@ -757,57 +855,57 @@ test listbox-3.81 {ListboxWidgetCmd procedure, "see" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l see index"}
 test listbox-3.82 {ListboxWidgetCmd procedure, "see" option} -body {
     .l see gorp
-} -returnCodes error -result {bad listbox index "gorp": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "gorp": must be active, anchor, end, @x,y, or an index}
 test listbox-3.83 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 7
     .l index @0,0
-} -result {7}
+} -result 7
 test listbox-3.84 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 11
     .l index @0,0
-} -result {7}
+} -result 7
 test listbox-3.85 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 6
     .l index @0,0
-} -result {6}
+} -result 6
 test listbox-3.86 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 5
     .l index @0,0
-} -result {3}
+} -result 3
 test listbox-3.87 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 12
     .l index @0,0
-} -result {8}
+} -result 8
 test listbox-3.88 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 13
     .l index @0,0
-} -result {11}
+} -result 11
 test listbox-3.89 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
-    .l see -1
+    .l see {}
     .l index @0,0
-} -result {0}
+} -result 0
 test listbox-3.90 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see end
     .l index @0,0
-} -result {13}
+} -result 13
 test listbox-3.91 {ListboxWidgetCmd procedure, "see" option} -body {
     .l yview 7
     .l see 322
     .l index @0,0
-} -result {13}
+} -result 13
 test listbox-3.92 {ListboxWidgetCmd procedure, "see" option, partial last line} -body {
     mkPartial
     .partial.l see 4
     .partial.l index @0,0
-} -result {1}
+} -result 1
 test listbox-3.93 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l select a
 } -returnCodes error -result {wrong # args: should be ".l selection option index ?index?"}
@@ -816,10 +914,10 @@ test listbox-3.94 {ListboxWidgetCmd procedure, "selection" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l selection option index ?index?"}
 test listbox-3.95 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection a bogus
-} -returnCodes error -result {bad listbox index "bogus": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "bogus": must be active, anchor, end, @x,y, or an index}
 test listbox-3.96 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection a 0 lousy
-} -returnCodes error -result {bad listbox index "lousy": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "lousy": must be active, anchor, end, @x,y, or an index}
 test listbox-3.97 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection anchor 0 0
 } -returnCodes error -result {wrong # args: should be ".l selection anchor index"}
@@ -828,17 +926,17 @@ test listbox-3.98 {ListboxWidgetCmd procedure, "selection" option} -body {
 	    [.l selection anchor 0; .l index anchor]
 } -result {5 0}
 test listbox-3.99 {ListboxWidgetCmd procedure, "selection" option} -body {
-    .l selection anchor -1
+    .l selection anchor {}
     .l index anchor
-} -result {0}
+} -result 0
 test listbox-3.100 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection anchor end
     .l index anchor
-} -result {17}
+} -result 17
 test listbox-3.101 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection anchor 44
     .l index anchor
-} -result {17}
+} -result 17
 test listbox-3.102 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection clear 0 end
     .l selection set 2 8
@@ -857,17 +955,17 @@ test listbox-3.104 {ListboxWidgetCmd procedure, "selection" option} -body {
 } -result {1 0 1}
 test listbox-3.105 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection set 0 end
-    .l selection includes -1
-} -result {0}
+    .l selection includes {}
+} -result 0
 test listbox-3.106 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection clear 0 end
     .l selection set end
     .l selection includes end
-} -result {1}
+} -result 1
 test listbox-3.107 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection set 0 end
     .l selection includes 44
-} -result {0}
+} -result 0
 test listbox-3.108 {ListboxWidgetCmd procedure, "selection" option} -setup {
     destroy .l2
 } -body {
@@ -875,7 +973,7 @@ test listbox-3.108 {ListboxWidgetCmd procedure, "selection" option} -setup {
     .l2 selection includes 0
 } -cleanup {
     destroy .l2
-} -result {0}
+} -result 0
 test listbox-3.109 {ListboxWidgetCmd procedure, "selection" option} -body {
     .l selection clear 0 end
     .l selection set 2
@@ -897,7 +995,7 @@ test listbox-3.112 {ListboxWidgetCmd procedure, "size" option} -body {
 } -returnCodes error -result {wrong # args: should be ".l size"}
 test listbox-3.113 {ListboxWidgetCmd procedure, "size" option} -body {
     .l size
-} -result {18}
+} -result 18
 test listbox-3.114 {ListboxWidgetCmd procedure, "xview" option} -setup {
     destroy .l2
 } -body {
@@ -1058,16 +1156,21 @@ test listbox-3.126 {ListboxWidgetCmd procedure, "yview" option, partial last lin
     destroy .l
 } -result {0 0.266667}
 
-# Listbox used in 3.127 -3.137 tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-3.127 - 3.137
+#
 destroy .l
 listbox .l -width 20 -height 5 -bd 4 -highlightthickness 1 -selectborderwidth 2
 pack .l
 .l insert 0 el0 el1 el2 el3 el4 el5 el6 el7 el8 el9 el10 el11 el12 el13 el14 \
 	el15 el16 el17
 update
+
 test listbox-3.127 {ListboxWidgetCmd procedure, "xview" option} -body {
     .l yview foo
-} -returnCodes error -result {bad listbox index "foo": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "foo": must be active, anchor, end, @x,y, or an index}
 test listbox-3.128 {ListboxWidgetCmd procedure, "xview" option} -body {
     .l yview foo a b
 } -returnCodes error -result {unknown option "foo": must be moveto or scroll}
@@ -1154,6 +1257,7 @@ test listbox-4.1 {ConfigureListbox procedure} -constraints {
     pack .l
     update
 } -body {
+    update
     set x [getsize .]
     .l configure -setgrid 0
     update
@@ -1161,7 +1265,12 @@ test listbox-4.1 {ConfigureListbox procedure} -constraints {
 } -cleanup {
     deleteWindows
 } -result {25x15 185x263}
+
+#
+# COMMON TEST CLEANUP
+#
 resetGridInfo
+
 test listbox-4.2 {ConfigureListbox procedure} -setup {
     deleteWindows
     destroy .l
@@ -1173,7 +1282,7 @@ test listbox-4.2 {ConfigureListbox procedure} -setup {
     .l cget -highlightthickness
 } -cleanup {
     deleteWindows
-} -result {0}
+} -result 0
 test listbox-4.3 {ConfigureListbox procedure} -setup {
     deleteWindows
     destroy .l
@@ -1284,7 +1393,11 @@ test listbox-4.7 {ConfigureListbox procedure} -setup {
     wm geom . {}
 } -result {30x20 26x15 26x15}
 
+#
+# COMMON TEST CLEANUP
+#
 resetGridInfo
+
 test listbox-4.8 {ConfigureListbox procedure} -setup {
     destroy .l2
 } -body {
@@ -1335,7 +1448,7 @@ test listbox-4.12 {ConfigureListbox procedure, listvar -> different listvar} -se
 } -body {
     set x [list a b c d]
     set y [list 1 2 3 4]
-    listbox .l2 
+    listbox .l2
     .l2 configure -listvar x
     .l2 configure -listvar y
     .l2 insert end 5 6 7 8
@@ -1483,13 +1596,16 @@ test listbox-5.6 {ListboxComputeGeometry procedure} -setup {
 } -cleanup {
     destroy .l
 } -result {}
-    
 
-# Listbox used in 6.*, 7.* tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-6.* and listbox-7.*
 destroy .l
 listbox .l -height 2 -xscrollcommand "record x" -yscrollcommand "record y"
 pack .l
 update
+
 test listbox-6.1 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert end a b c d
@@ -1504,14 +1620,14 @@ test listbox-6.2 {InsertEls procedure} -body {
     .l selection anchor 2
     .l insert 2 A B
     .l index anchor
-} -result {4}
+} -result 4
 test listbox-6.3 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l selection anchor 2
     .l insert 3 A B
     .l index anchor
-} -result {2}
+} -result 2
 test listbox-6.4 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
@@ -1519,7 +1635,7 @@ test listbox-6.4 {InsertEls procedure} -body {
     update
     .l insert 2 A B
     .l index @0,0
-} -result {5}
+} -result 5
 test listbox-6.5 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
@@ -1527,31 +1643,31 @@ test listbox-6.5 {InsertEls procedure} -body {
     update
     .l insert 3 A B
     .l index @0,0
-} -result {3}
+} -result 3
 test listbox-6.6 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l activate 5
     .l insert 5 A B
     .l index active
-} -result {7}
+} -result 7
 test listbox-6.7 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l activate 5
     .l insert 6 A B
     .l index active
-} -result {5}
+} -result 5
 test listbox-6.8 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c
     .l index active
-} -result {2}
+} -result 2
 test listbox-6.9 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0
     .l index active
-} -result {0}
+} -result 0
 test listbox-6.10 {InsertEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b "two words"  c d e f g h i j
@@ -1659,28 +1775,28 @@ test listbox-7.5 {DeleteEls procedure} -body {
     .l selection anchor 2
     .l delete 0 1
     .l index anchor
-} -result {0}
+} -result 0
 test listbox-7.6 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l selection anchor 2
     .l delete 2
     .l index anchor
-} -result {2}
+} -result 2
 test listbox-7.7 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l selection anchor 4
     .l delete 2 5
     .l index anchor
-} -result {2}
+} -result 2
 test listbox-7.8 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l selection anchor 3
     .l delete 4 5
     .l index anchor
-} -result {3}
+} -result 3
 test listbox-7.9 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
@@ -1688,7 +1804,7 @@ test listbox-7.9 {DeleteEls procedure} -body {
     update
     .l delete 1 2
     .l index @0,0
-} -result {1}
+} -result 1
 test listbox-7.10 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
@@ -1696,7 +1812,7 @@ test listbox-7.10 {DeleteEls procedure} -body {
     update
     .l delete 3 4
     .l index @0,0
-} -result {3}
+} -result 3
 test listbox-7.11 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
@@ -1704,7 +1820,7 @@ test listbox-7.11 {DeleteEls procedure} -body {
     update
     .l delete 4 6
     .l index @0,0
-} -result {3}
+} -result 3
 test listbox-7.12 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
@@ -1712,42 +1828,42 @@ test listbox-7.12 {DeleteEls procedure} -body {
     update
     .l delete 3 end
     .l index @0,0
-} -result {1}
+} -result 1
 test listbox-7.13 {DeleteEls procedure, updating view with partial last line} -body {
     mkPartial
     .partial.l yview 8
     update
     .partial.l delete 10 13
     .partial.l index @0,0
-} -result {7}
+} -result 7
 test listbox-7.14 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l activate 6
     .l delete 3 4
     .l index active
-} -result {4}
+} -result 4
 test listbox-7.15 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l activate 6
     .l delete 5 7
     .l index active
-} -result {5}
+} -result 5
 test listbox-7.16 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l activate 6
     .l delete 5 end
     .l index active
-} -result {4}
+} -result 4
 test listbox-7.17 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j
     .l activate 6
     .l delete 0 end
     .l index active
-} -result {0}
+} -result 0
 test listbox-7.18 {DeleteEls procedure} -body {
     .l delete 0 end
     .l insert 0 a b c "two words" d e f g h i j
@@ -1803,7 +1919,12 @@ test listbox-8.1 {ListboxEventProc procedure} -constraints {
 } -cleanup {
     destroy .l
 } -result {20x10 150x178 0 {}}
+
+#
+# COMMON TEST CLEANUP
+#
 resetGridInfo
+
 test listbox-8.2 {ListboxEventProc procedure} -constraints {
 	fonts
 } -setup {
@@ -1844,7 +1965,7 @@ test listbox-9.1 {ListboxCmdDeletedProc procedure} -setup {
     deleteWindows
 } -result {{} {}}
 test listbox-9.2 {ListboxCmdDeletedProc procedure, disabling -setgrid} -constraints {
-	fonts 
+	fonts
 } -setup {
     destroy .top
 } -body {
@@ -1861,9 +1982,6 @@ test listbox-9.2 {ListboxCmdDeletedProc procedure, disabling -setgrid} -constrai
     destroy .top
 } -result {20x10 150x178}
 
-
-# Listbox used in 10.* tests
-destroy .l
 test listbox-10.1 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1908,7 +2026,7 @@ test listbox-10.4 {GetListboxIndex procedure} -setup {
     .l index a
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "a": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "a": must be active, anchor, end, @x,y, or an index}
 test listbox-10.5 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1918,7 +2036,7 @@ test listbox-10.5 {GetListboxIndex procedure} -setup {
     .l index end
 } -cleanup {
     destroy .l
-} -result {12}
+} -result 12
 test listbox-10.6 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1949,7 +2067,7 @@ test listbox-10.8 {GetListboxIndex procedure} -setup {
     .l index @
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "@": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@": must be active, anchor, end, @x,y, or an index}
 test listbox-10.9 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1959,7 +2077,7 @@ test listbox-10.9 {GetListboxIndex procedure} -setup {
     .l index @foo
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "@foo": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@foo": must be active, anchor, end, @x,y, or an index}
 test listbox-10.10 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1969,7 +2087,7 @@ test listbox-10.10 {GetListboxIndex procedure} -setup {
     .l index @1x3
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "@1x3": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@1x3": must be active, anchor, end, @x,y, or an index}
 test listbox-10.11 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1979,7 +2097,7 @@ test listbox-10.11 {GetListboxIndex procedure} -setup {
     .l index @1,
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "@1,": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@1,": must be active, anchor, end, @x,y, or an index}
 test listbox-10.12 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1989,7 +2107,7 @@ test listbox-10.12 {GetListboxIndex procedure} -setup {
     .l index @1,foo
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "@1,foo": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@1,foo": must be active, anchor, end, @x,y, or an index}
 test listbox-10.13 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -1999,7 +2117,7 @@ test listbox-10.13 {GetListboxIndex procedure} -setup {
     .l index @1,2x
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "@1,2x": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "@1,2x": must be active, anchor, end, @x,y, or an index}
 test listbox-10.14 {GetListboxIndex procedure} -constraints {
     fonts
 } -setup {
@@ -2023,7 +2141,7 @@ test listbox-10.15 {GetListboxIndex procedure} -setup {
     .l index 1xy
 } -cleanup {
     destroy .l
-} -returnCodes error -result {bad listbox index "1xy": must be active, anchor, end, @x,y, or a number}
+} -returnCodes error -result {bad listbox index "1xy": must be active, anchor, end, @x,y, or an index}
 test listbox-10.16 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -2033,7 +2151,7 @@ test listbox-10.16 {GetListboxIndex procedure} -setup {
     .l index 3
 } -cleanup {
     destroy .l
-} -result {3}
+} -result 3
 test listbox-10.17 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -2043,7 +2161,7 @@ test listbox-10.17 {GetListboxIndex procedure} -setup {
     .l index 20
 } -cleanup {
     destroy .l
-} -result {20}
+} -result 12
 test listbox-10.18 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -2060,10 +2178,10 @@ test listbox-10.19 {GetListboxIndex procedure} -setup {
     pack [listbox .l]
     .l insert 0 el0 el1 el2 el3 el4 el5 el6 el7 el8 el9 el10 el11
     update
-    .l index -2
+    expr {[.l index {}]<0}
 } -cleanup {
     destroy .l
-} -result  -2
+} -result 1
 test listbox-10.20 {GetListboxIndex procedure} -setup {
     destroy .l
 } -body {
@@ -2074,7 +2192,7 @@ test listbox-10.20 {GetListboxIndex procedure} -setup {
     .l index 1
 } -cleanup {
     destroy .l
-} -result 1
+} -result 0
 
 
 test listbox-11.1 {ChangeListboxView procedure, boundary conditions for index} -setup {
@@ -2086,7 +2204,7 @@ test listbox-11.1 {ChangeListboxView procedure, boundary conditions for index} -
     .l yview 3
     update
     set x [.l index @0,0]
-    .l yview -1
+    .l yview {}
     update
     lappend x [.l index @0,0]
 } -cleanup {
@@ -2140,6 +2258,7 @@ test listbox-11.5 {ChangeListboxView procedure} -setup {
 } -body {
     listbox .l -height 5 -yscrollcommand "record y"
     pack .l
+    update
     .l insert 0 a b c d e f g h i j
     .l yview 3
     update
@@ -2156,15 +2275,19 @@ test listbox-11.6 {ChangeListboxView procedure, partial last line} -body {
     .partial.l index @0,0
 } -cleanup {
     destroy .l
-} -result {11}
+} -result 11
 
-
-# Listbox used in 12.* tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-12.*
+#
 destroy .l
 listbox .l -font $fixed -xscrollcommand "record x" -width 10
 .l insert 0 0123456789a123456789b123456789c123456789d123456789e123456789f123456789g123456789h123456789i123456789
 pack .l
 update
+
 test listbox-12.1 {ChangeListboxOffset procedure} -constraints {
 	fonts
 } -body {
@@ -2193,23 +2316,27 @@ test listbox-12.3 {ChangeListboxOffset procedure} -constraints {
     list [format {%.6g %.6g} {*}[.l xview]] $log
 } -result {{0.1 0.2} {}}
 
-
-# Listbox used in 13.* tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-13.*
+#
 destroy .l
 listbox .l -font $fixed -width 10 -height 5
 pack .l
 .l insert 0 a bb c d e f g h i j k l m n o p q r s
 .l insert 0 0123456789a123456789b123456789c123456789d123456789
 update
-set width [expr [lindex [.l bbox 2] 2] - [lindex [.l bbox 1] 2]]
-set height [expr [lindex [.l bbox 2] 1] - [lindex [.l bbox 1] 1]]
+set width [expr {[lindex [.l bbox 2] 2] - [lindex [.l bbox 1] 2]}]
+set height [expr {[lindex [.l bbox 2] 1] - [lindex [.l bbox 1] 1]}]
+
 test listbox-13.1 {ListboxScanTo procedure} -constraints {
 	fonts
 } -body {
     .l yview 0
     .l xview 0
     .l scan mark 10 20
-    .l scan dragto [expr 10-$width] [expr 20-$height]
+    .l scan dragto [expr {10-$width}] [expr {20-$height}]
     update
     list [format {%.6g %.6g} {*}[.l xview]] [format {%.6g %.6g} {*}[.l yview]]
 } -result {{0.2 0.4} {0.5 0.75}}
@@ -2222,7 +2349,7 @@ test listbox-13.2 {ListboxScanTo procedure} -constraints {
     .l scan dragto 20 40
     update
     set x [list [format {%.6g %.6g} {*}[.l xview]] [format {%.6g %.6g} {*}[.l yview]]]
-    .l scan dragto [expr 20-$width] [expr 40-$height]
+    .l scan dragto [expr {20-$width}] [expr {40-$height}]
     update
     lappend x [format {%.6g %.6g} {*}[.l xview]] [format {%.6g %.6g} {*}[.l yview]]
 } -result {{0 0.2} {0 0.25} {0.2 0.4} {0.5 0.75}}
@@ -2235,28 +2362,34 @@ test listbox-13.3 {ListboxScanTo procedure} -constraints {
     .l scan dragto 5 10
     update
     set x [list [format {%.6g %.6g} {*}[.l xview]] [format {%.6g %.6g} {*}[.l yview]]]
-    .l scan dragto [expr 5+$width] [expr 10+$height]
+    .l scan dragto [expr {5+$width}] [expr {10+$height}]
     update
     lappend x [format {%.6g %.6g} {*}[.l xview]] [format {%.6g %.6g} {*}[.l yview]]
-} -result {{0.8 1} {0.75 1} {0.64 0.84} {0.25 0.5}}
+} -result {{0.8 1} {0.75 1} {0.6 0.8} {0.25 0.5}}
 
 
 test listbox-14.1 {NearestListboxElement procedure, partial last line} -body {
     mkPartial
     .partial.l nearest [winfo height .partial.l]
-} -result {4}
-# Listbox used in 14.* tests
+} -result 4
+
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-14.*
+#
 destroy .l
 listbox .l -font $fixed -width 20 -height 10
 .l insert 0 a b c d e f g h i j k l m n o p q r s t
 .l yview 4
 pack .l
 update
+
 test listbox-14.2 {NearestListboxElement procedure} -constraints {
 	fonts
 } -body {
     .l index @50,0
-} -result {4}
+} -result 4
 test listbox-14.3 {NearestListboxElement procedure} -constraints {
 	fonts
 } -body {
@@ -2266,14 +2399,18 @@ test listbox-14.4 {NearestListboxElement procedure} -constraints {
 	fonts
 } -body {
     .l index @50,200
-} -result {13}
+} -result 13
 
-
-# Listbox used in 15.* 16.* and 17.* tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-15.* 16.* and 17.*
+#
 destroy .l
 listbox .l -font $fixed -width 20 -height 10
 pack .l
 update
+
 test listbox-15.1 {ListboxSelect procedure} -body {
     .l delete 0 end
     .l insert 0 a b c d e f g h i j k l m n o p
@@ -2308,14 +2445,14 @@ test listbox-15.4 {ListboxSelect procedure, boundary conditions for indices} -bo
     .l delete 0 end
     .l insert 0 a b c d e f
     .l select clear 0 end
-    .l select set -2 -1
+    .l select set {} {}
     .l curselection
 } -result {}
 test listbox-15.5 {ListboxSelect procedure, boundary conditions for indices} -body {
     .l delete 0 end
     .l insert 0 a b c d e f
     .l select clear 0 end
-    .l select set -1 3
+    .l select set {} 3
     .l curselection
 } -result {0 1 2 3}
 test listbox-15.6 {ListboxSelect procedure, boundary conditions for indices} -body {
@@ -2345,7 +2482,7 @@ test listbox-15.9 {ListboxSelect procedure, boundary conditions for indices} -bo
     .l select clear 0 end
     .l select set end 30
     .l curselection
-} -result {5}
+} -result 5
 test listbox-15.10 {ListboxSelect procedure, boundary conditions for indices} -body {
     .l delete 0 end
     .l insert 0 a b c d e f
@@ -2381,7 +2518,7 @@ test listbox-16.3 {ListboxFetchSelection procedure, retrieve in several parts} -
     string compare 1$long\n2$long\n3$long\n4$long\n5$long $sel
 } -cleanup {
     catch {unset long sel}
-} -result {0}
+} -result 0
 
 
 test listbox-17.1 {ListboxLostSelection procedure} -setup {
@@ -2414,12 +2551,16 @@ test listbox-17.2 {ListboxLostSelection procedure} -setup {
     destroy .e
 } -result {0 1 2 3 4}
 
-
-# Listbox used in 18.* tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-18.*
+#
 destroy .l
 listbox .l -font $fixed -width 10 -height 5
 pack .l
 update
+
 test listbox-18.1 {ListboxUpdateVScrollbar procedure} -body {
     .l configure -yscrollcommand "record y"
     set log {}
@@ -2455,12 +2596,16 @@ test listbox-18.3 {ListboxUpdateVScrollbar procedure} -body {
 "gorp 0.0 1.0"
     (vertical scrolling command executed by listbox)}}
 
-
-# Listbox used in 19.* tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-19.*
+#
 destroy .l
 listbox .l -font $fixed -width 10 -height 5
 pack .l
 update
+
 test listbox-19.1 {ListboxUpdateVScrollbar procedure} -constraints {
 	fonts
 } -body {
@@ -2592,37 +2737,37 @@ test listbox-21.8 {ListboxListVarProc, test selection after listvar mod} -setup 
 test listbox-21.9 {ListboxListVarProc, test hscrollbar after listvar mod} -setup {
     destroy .l
 } -body {
-    catch {unset x}
-    set log {}
+    set x {}
     listbox .l -font $fixed -width 10 -xscrollcommand "record x" -listvar x
     pack .l
-    update
+    update idletasks
+    set log {}
     lappend x "0000000000"
-    update
+    update idletasks
     lappend x "00000000000000000000"
-    update
+    update idletasks
     set log
 } -cleanup {
     destroy .l
-} -result [list {x 0 1} {x 0 1} {x 0 0.5}]
+} -result [list {x 0 1} {x 0 0.5}]
 test listbox-21.10 {ListboxListVarProc, test hscrollbar after listvar mod} -setup {
     destroy .l
 } -body {
     catch {unset x}
-    set log {}
     listbox .l -font $fixed -width 10 -xscrollcommand "record x" -listvar x
     pack .l
-    update
+    update idletasks
+    set log {}
     lappend x "0000000000"
-    update
+    update idletasks
     lappend x "00000000000000000000"
-    update
+    update idletasks
     set x [list "0000000000"]
-    update
+    update idletasks
     set log
 } -cleanup {
     destroy .l
-} -result [list {x 0 1} {x 0 1} {x 0 0.5} {x 0 1}]
+} -result [list {x 0 1} {x 0 0.5} {x 0 1}]
 test listbox-21.11 {ListboxListVarProc, bad list} -setup {
     destroy .l
 } -body {
@@ -2686,15 +2831,19 @@ test listbox-21.15 {ListboxListVarProc, update vertical scrollbar} -setup {
     destroy .l
 } -body {
     catch {unset x}
+    listbox .l -font $fixed -height 3 -yscrollcommand "record y" -listvar x
+    update
     set log {}
-    listbox .l -listvar x -yscrollcommand "record y" -font fixed -height 3
     pack .l
+    set timeout [after 500 {lappend log timeout3}]
+    vwait log
     update
     lappend x a b c d e f
-    update
+    vwait log
     set log
 } -cleanup {
     destroy .l
+    after cancel $timeout
 } -result [list {y 0 1} {y 0 0.5}]
 test listbox-21.16 {ListboxListVarProc, update vertical scrollbar} -setup {
     destroy .l
@@ -2702,7 +2851,6 @@ test listbox-21.16 {ListboxListVarProc, update vertical scrollbar} -setup {
     catch {unset x}
     listbox .l -listvar x -height 3
     pack .l
-    update
     set x [list 0 1 2 3 4 5]
     .l yview scroll 3 units
     update
@@ -2723,18 +2871,20 @@ test listbox-21.16 {ListboxListVarProc, update vertical scrollbar} -setup {
 test listbox-22.1 {UpdateHScrollbar} -setup {
     destroy .l
 } -body {
-    set log {}
     listbox .l -font $fixed -width 10 -xscrollcommand "record x"
     pack .l
-    update
+    update idletasks
+    set log {}
+    set timeout [after 500 {lappend log timeout4}]
     .l insert end "0000000000"
-    update
+    vwait log
     .l insert end "00000000000000000000"
-    update
+    vwait log
     set log
 } -cleanup {
     destroy .l
-} -result [list {x 0 1} {x 0 1} {x 0 0.5}]
+    after cancel $timeout
+} -result [list {x 0 1} {x 0 0.5}]
 
 
 # ConfigureListboxItem
@@ -2755,12 +2905,12 @@ test listbox-23.2 {ConfigureListboxItem} -setup {
     .l itemconfigure 0
 } -cleanup {
     destroy .l
-} -result [list {-background background Background {} {}} \
+} -result [list {-background {} {} {} {}} \
 	{-bg -background} \
 	{-fg -foreground} \
-	{-foreground foreground Foreground {} {}} \
-	{-selectbackground selectBackground Foreground {} {}} \
-	{-selectforeground selectForeground Background {} {}}]
+	{-foreground {} {} {} {}} \
+	{-selectbackground {} {} {} {}} \
+	{-selectforeground {} {} {} {}}]
 test listbox-23.3 {ConfigureListboxItem, itemco shortcut} -setup {
     destroy .l
 } -body {
@@ -2769,7 +2919,7 @@ test listbox-23.3 {ConfigureListboxItem, itemco shortcut} -setup {
     .l itemco 0 -background
 } -cleanup {
     destroy .l
-} -result {-background background Background {} {}}
+} -result {-background {} {} {} {}}
 test listbox-23.4 {ConfigureListboxItem, wrong num args} -setup {
     destroy .l
 } -body {
@@ -2779,7 +2929,7 @@ test listbox-23.4 {ConfigureListboxItem, wrong num args} -setup {
     set result
 } -cleanup {
     destroy .l
-} -result {wrong # args: should be ".l itemconfigure index ?-option? ?value? ?-option value ...?"}
+} -result {wrong # args: should be ".l itemconfigure index ?-option value ...?"}
 test listbox-23.5 {ConfigureListboxItem, multiple calls} -setup {
     destroy .l
 } -body {
@@ -2799,10 +2949,15 @@ test listbox-23.5 {ConfigureListboxItem, multiple calls} -setup {
     destroy .l
 } -result {red orange yellow green blue white violet}
 
-# Listbox used in 23.6 -23.17 tests
+#
+# COMMON TEST SETUP
+#
+# For tests listbox-23.6 - 23.17
+#
 destroy .l
 listbox .l
 .l insert end a b c d
+
 test listbox-23.6 {configuration options} -body {
     .l itemconfigure 0 -background #ff0000
     list [lindex [.l itemconfigure 0 -background] 4] [.l itemcget 0 -background]
@@ -2925,7 +3080,7 @@ test listbox-25.2 {listbox item configurations and widget based inserts} -setup 
 } -cleanup {
     destroy .l
 } -result {{} red}
-    
+
 
 # state issues
 test listbox-26.1 {listbox disabled state disallows inserts} -setup {
@@ -3068,15 +3223,79 @@ test listbox-30.1 {Bug 3607326} -setup {
     unset -nocomplain a
 } -result * -match glob -returnCodes error
 
+test listbox-31.1 {<<ListboxSelect>> event} -setup {
+    destroy .l
+    unset -nocomplain res
+} -body {
+    pack [listbox .l -state normal]
+    update
+    bind .l <<ListboxSelect>> {lappend res [%W curselection]}
+    .l insert end a b c
+    focus -force .l
+    event generate .l <Button-1> -x 5 -y 5  ; # <<ListboxSelect>> fires
+    .l configure -state disabled
+    focus -force .l
+    event generate .l <Control-Home> ; # <<ListboxSelect>> does NOT fire
+    .l configure -state normal
+    focus -force .l
+    event generate .l <Control-End>  ; # <<ListboxSelect>> fires
+    .l selection clear 0 end         ; # <<ListboxSelect>> does NOT fire
+    .l selection set 1 1             ; # <<ListboxSelect>> does NOT fire
+    lappend res [.l curselection]
+} -cleanup {
+    destroy .l
+    unset -nocomplain res
+} -result {0 2 1}
+
+test listbox-31.2 {<<ListboxSelect>> event on lost selection} -setup {
+    destroy .l
+} -body {
+    pack [listbox .l -exportselection true]
+    update
+    bind .l <<ListboxSelect>> {lappend res [list [selection own] [%W curselection]]}
+    .l insert end a b c
+    focus -force .l
+    event generate .l <Button-1> -x 5 -y 5  ; # <<ListboxSelect>> fires
+    selection clear                  ; # <<ListboxSelect>> fires again
+    update
+    set res
+} -cleanup {
+    destroy .l
+} -result {{.l 0} {{} {}}}
+
+test listbox-32.1 {Bug [5d991b822e]} {
+    # Want this not to segfault, or write to variable with empty name
+    set var INIT
+    listbox .b -listvariable var
+    trace add variable var unset {apply {args {
+	.b configure -listvariable {}
+    }}}
+    pack .b
+    bind .b <Configure> {unset var}
+    update
+    destroy .b
+    info exists {}
+} 0
+test listbox-32.2 {Bug [5d991b822e]} {
+    # Want this not to leak traces
+    set var INIT
+    listbox .b -listvariable var
+    trace add variable var unset {apply {args {
+	.b configure -listvariable new
+    }}}
+    pack .b
+    bind .b <Configure> {unset -nocomplain var}
+    update
+    destroy .b
+    unset new
+} {}
+
+#
+# TESTFILE CLEANUP
+#
+
 resetGridInfo
 deleteWindows
 option clear
-
-# cleanup
+rename getsize {}
 cleanupTests
-return
-
-
-
-
-

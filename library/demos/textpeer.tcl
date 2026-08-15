@@ -8,7 +8,7 @@ if {![info exists widgetDemo]} {
     error "This script should be run from the \"widget\" demo."
 }
 
-package require Tk
+package require tk
 
 set w .textpeer
 catch {destroy $w}
@@ -36,7 +36,7 @@ proc makeClone {w parent} {
     global count
     set t [$parent peer create $w.text[incr count] -yscroll "$w.sb$count set"\
 		  -height 10 -wrap word]
-    set sb [scrollbar $w.sb$count -command "$t yview" -orient vertical]
+    set sb [ttk::scrollbar $w.sb$count -command "$t yview" -orient vertical]
     set b1 [button $w.clone$count -command "makeClone $w $t" \
 		    -text "Make Peer"]
     set b2 [button $w.kill$count -command "killClone $w $count" \

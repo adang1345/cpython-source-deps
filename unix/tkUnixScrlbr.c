@@ -4,7 +4,7 @@
  *	This file implements the Unix specific portion of the scrollbar
  *	widget.
  *
- * Copyright (c) 1996 by Sun Microsystems, Inc.
+ * Copyright © 1996 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -63,10 +63,10 @@ TkScrollbar *
 TkpCreateScrollbar(
     Tk_Window tkwin)
 {
-    UnixScrollbar *scrollPtr = ckalloc(sizeof(UnixScrollbar));
+    UnixScrollbar *scrollPtr = (UnixScrollbar *)ckalloc(sizeof(UnixScrollbar));
 
-    scrollPtr->troughGC = None;
-    scrollPtr->copyGC = None;
+    scrollPtr->troughGC = NULL;
+    scrollPtr->copyGC = NULL;
 
     Tk_CreateEventHandler(tkwin,
 	    ExposureMask|StructureNotifyMask|FocusChangeMask,
@@ -95,13 +95,14 @@ TkpCreateScrollbar(
 
 void
 TkpDisplayScrollbar(
-    ClientData clientData)	/* Information about window. */
+    void *clientData)	/* Information about window. */
 {
-    register TkScrollbar *scrollPtr = (TkScrollbar *) clientData;
-    register Tk_Window tkwin = scrollPtr->tkwin;
+    TkScrollbar *scrollPtr = (TkScrollbar *)clientData;
+    Tk_Window tkwin = scrollPtr->tkwin;
     XPoint points[7];
     Tk_3DBorder border;
     int relief, width, elementBorderWidth;
+    int borderWidth, highlightWidth;
     Pixmap pixmap;
 
     if ((scrollPtr->tkwin == NULL) || !Tk_IsMapped(tkwin)) {
@@ -109,13 +110,15 @@ TkpDisplayScrollbar(
     }
 
     if (scrollPtr->vertical) {
-	width = Tk_Width(tkwin) - 2*scrollPtr->inset;
+	width = Tk_Width(tkwin) - 2 * scrollPtr->inset;
     } else {
-	width = Tk_Height(tkwin) - 2*scrollPtr->inset;
+	width = Tk_Height(tkwin) - 2 * scrollPtr->inset;
     }
-    elementBorderWidth = scrollPtr->elementBorderWidth;
-    if (elementBorderWidth < 0) {
-	elementBorderWidth = scrollPtr->borderWidth;
+    Tk_GetPixelsFromObj(NULL, scrollPtr->tkwin, scrollPtr->borderWidthObj, &borderWidth);
+    if (scrollPtr->elementBorderWidthObj) {
+	Tk_GetPixelsFromObj(NULL, scrollPtr->tkwin, scrollPtr->elementBorderWidthObj, &elementBorderWidth);
+    } else {
+	elementBorderWidth = borderWidth;
     }
 
     /*
@@ -128,7 +131,8 @@ TkpDisplayScrollbar(
     pixmap = Tk_GetPixmap(scrollPtr->display, Tk_WindowId(tkwin),
 	    Tk_Width(tkwin), Tk_Height(tkwin), Tk_Depth(tkwin));
 
-    if (scrollPtr->highlightWidth != 0) {
+    Tk_GetPixelsFromObj(NULL, scrollPtr->tkwin, scrollPtr->highlightWidthObj, &highlightWidth);
+    if (highlightWidth > 0) {
 	GC gc;
 
 	if (scrollPtr->flags & GOT_FOCUS) {
@@ -136,18 +140,18 @@ TkpDisplayScrollbar(
 	} else {
 	    gc = Tk_GCForColor(scrollPtr->highlightBgColorPtr, pixmap);
 	}
-	Tk_DrawFocusHighlight(tkwin, gc, scrollPtr->highlightWidth, pixmap);
+	Tk_DrawFocusHighlight(tkwin, gc, highlightWidth, pixmap);
     }
     Tk_Draw3DRectangle(tkwin, pixmap, scrollPtr->bgBorder,
-	    scrollPtr->highlightWidth, scrollPtr->highlightWidth,
-	    Tk_Width(tkwin) - 2*scrollPtr->highlightWidth,
-	    Tk_Height(tkwin) - 2*scrollPtr->highlightWidth,
-	    scrollPtr->borderWidth, scrollPtr->relief);
+	    highlightWidth, highlightWidth,
+	    Tk_Width(tkwin) - 2 * highlightWidth,
+	    Tk_Height(tkwin) - 2 * highlightWidth,
+	    borderWidth, scrollPtr->relief);
     XFillRectangle(scrollPtr->display, pixmap,
 	    ((UnixScrollbar*)scrollPtr)->troughGC,
 	    scrollPtr->inset, scrollPtr->inset,
-	    (unsigned) (Tk_Width(tkwin) - 2*scrollPtr->inset),
-	    (unsigned) (Tk_Height(tkwin) - 2*scrollPtr->inset));
+	    (unsigned) (Tk_Width(tkwin) - 2 * scrollPtr->inset),
+	    (unsigned) (Tk_Height(tkwin) - 2 * scrollPtr->inset));
 
     /*
      * Draw the top or left arrow. The coordinates of the polygon points
@@ -277,22 +281,27 @@ TkpDisplayScrollbar(
 
 extern void
 TkpComputeScrollbarGeometry(
-    register TkScrollbar *scrollPtr)
+    TkScrollbar *scrollPtr)
 				/* Scrollbar whose geometry may have
 				 * changed. */
 {
     int width, fieldLength;
+    int borderWidth, highlightWidth;
 
-    if (scrollPtr->highlightWidth < 0) {
-	scrollPtr->highlightWidth = 0;
-    }
-    scrollPtr->inset = scrollPtr->highlightWidth + scrollPtr->borderWidth;
+    Tk_GetPixelsFromObj(NULL, scrollPtr->tkwin, scrollPtr->borderWidthObj, &borderWidth);
+    Tk_GetPixelsFromObj(NULL, scrollPtr->tkwin, scrollPtr->highlightWidthObj, &highlightWidth);
+    scrollPtr->inset = highlightWidth + borderWidth;
     width = (scrollPtr->vertical) ? Tk_Width(scrollPtr->tkwin)
 	    : Tk_Height(scrollPtr->tkwin);
-    scrollPtr->arrowLength = width - 2*scrollPtr->inset + 1;
+
+    /*
+     * Next line assumes that the arrow area is a square.
+     */
+
+    scrollPtr->arrowLength = width - 2 * scrollPtr->inset + 1;
     fieldLength = (scrollPtr->vertical ? Tk_Height(scrollPtr->tkwin)
 	    : Tk_Width(scrollPtr->tkwin))
-	    - 2*(scrollPtr->arrowLength + scrollPtr->inset);
+	    - 2 * (scrollPtr->arrowLength + scrollPtr->inset);
     if (fieldLength < 0) {
 	fieldLength = 0;
     }
@@ -326,15 +335,16 @@ TkpComputeScrollbarGeometry(
      * window, if any). Then arrange for the window to be redisplayed.
      */
 
+    Tk_GetPixelsFromObj(NULL, scrollPtr->tkwin, scrollPtr->widthObj, &width);
     if (scrollPtr->vertical) {
 	Tk_GeometryRequest(scrollPtr->tkwin,
-		scrollPtr->width + 2*scrollPtr->inset,
-		2*(scrollPtr->arrowLength + scrollPtr->borderWidth
+		width + 2 * scrollPtr->inset,
+		2 * (scrollPtr->arrowLength + borderWidth
 		+ scrollPtr->inset));
     } else {
 	Tk_GeometryRequest(scrollPtr->tkwin,
-		2*(scrollPtr->arrowLength + scrollPtr->borderWidth
-		+ scrollPtr->inset), scrollPtr->width + 2*scrollPtr->inset);
+		2 * (scrollPtr->arrowLength + borderWidth
+		+ scrollPtr->inset), width + 2 * scrollPtr->inset);
     }
     Tk_SetInternalBorder(scrollPtr->tkwin, scrollPtr->inset);
 }
@@ -361,10 +371,10 @@ TkpDestroyScrollbar(
 {
     UnixScrollbar *unixScrollPtr = (UnixScrollbar *)scrollPtr;
 
-    if (unixScrollPtr->troughGC != None) {
+    if (unixScrollPtr->troughGC != NULL) {
 	Tk_FreeGC(scrollPtr->display, unixScrollPtr->troughGC);
     }
-    if (unixScrollPtr->copyGC != None) {
+    if (unixScrollPtr->copyGC != NULL) {
 	Tk_FreeGC(scrollPtr->display, unixScrollPtr->copyGC);
     }
 }
@@ -389,23 +399,23 @@ TkpDestroyScrollbar(
 
 void
 TkpConfigureScrollbar(
-    register TkScrollbar *scrollPtr)
+    TkScrollbar *scrollPtr)
 				/* Information about widget; may or may not
 				 * already have values for some fields. */
 {
     XGCValues gcValues;
-    GC new;
+    GC newGC;
     UnixScrollbar *unixScrollPtr = (UnixScrollbar *) scrollPtr;
 
     Tk_SetBackgroundFromBorder(scrollPtr->tkwin, scrollPtr->bgBorder);
 
     gcValues.foreground = scrollPtr->troughColorPtr->pixel;
-    new = Tk_GetGC(scrollPtr->tkwin, GCForeground, &gcValues);
-    if (unixScrollPtr->troughGC != None) {
+    newGC = Tk_GetGC(scrollPtr->tkwin, GCForeground, &gcValues);
+    if (unixScrollPtr->troughGC != NULL) {
 	Tk_FreeGC(scrollPtr->display, unixScrollPtr->troughGC);
     }
-    unixScrollPtr->troughGC = new;
-    if (unixScrollPtr->copyGC == None) {
+    unixScrollPtr->troughGC = newGC;
+    if (unixScrollPtr->copyGC == NULL) {
 	gcValues.graphics_exposures = False;
 	unixScrollPtr->copyGC = Tk_GetGC(scrollPtr->tkwin,
 		GCGraphicsExposures, &gcValues);
@@ -432,12 +442,12 @@ TkpConfigureScrollbar(
 
 int
 TkpScrollbarPosition(
-    register TkScrollbar *scrollPtr,
+    TkScrollbar *scrollPtr,
 				/* Scrollbar widget record. */
     int x, int y)		/* Coordinates within scrollPtr's window. */
 {
     int length, width, tmp;
-    register const int inset = scrollPtr->inset;
+    const int inset = scrollPtr->inset;
 
     if (scrollPtr->vertical) {
 	length = Tk_Height(scrollPtr->tkwin);

@@ -3,18 +3,18 @@
  *
  * Simplified interface to Tcl_TraceVariable.
  *
- * PROBLEM: Can't distinguish "variable does not exist" (which is OK) 
+ * PROBLEM: Can't distinguish "variable does not exist" (which is OK)
  * from other errors (which are not).
  */
 
-#include <tk.h>
+#include "tkInt.h"
 #include "ttkTheme.h"
 #include "ttkWidget.h"
 
 struct TtkTraceHandle_
 {
     Tcl_Interp		*interp;	/* Containing interpreter */
-    Tcl_Obj 		*varnameObj;	/* Name of variable being traced */
+    Tcl_Obj		*varnameObj;	/* Name of variable being traced */
     Ttk_TraceProc	callback;	/* Callback procedure */
     void		*clientData;	/* Data to pass to callback */
 };
@@ -24,17 +24,17 @@ struct TtkTraceHandle_
  */
 static char *
 VarTraceProc(
-    ClientData clientData,	/* Widget record pointer */
-    Tcl_Interp *interp, 	/* Interpreter containing variable. */
-    const char *name1,		/* (unused) */
-    const char *name2,		/* (unused) */
+    void *clientData,	/* Widget record pointer */
+    Tcl_Interp *interp,	/* Interpreter containing variable. */
+    TCL_UNUSED(const char *),	/* name1 */
+    TCL_UNUSED(const char *),	/* name2 */
     int flags)			/* Information about what happened. */
 {
-    Ttk_TraceHandle *tracePtr = clientData;
+    Ttk_TraceHandle *tracePtr = (Ttk_TraceHandle *)clientData;
     const char *name, *value;
     Tcl_Obj *valuePtr;
 
-    if (flags & TCL_INTERP_DESTROYED) {
+    if (Tcl_InterpDeleted(interp)) {
 	return NULL;
     }
 
@@ -51,7 +51,7 @@ VarTraceProc(
 	 */
 	if (tracePtr->interp == NULL) {
 	    Tcl_DecrRefCount(tracePtr->varnameObj);
-	    ckfree((ClientData)tracePtr);
+	    ckfree(tracePtr);
 	    return NULL;
 	}
 	Tcl_TraceVar2(interp, name, NULL,
@@ -72,12 +72,12 @@ VarTraceProc(
 }
 
 /* Ttk_TraceVariable(interp, varNameObj, callback, clientdata) --
- * 	Attach a write trace to the specified variable,
- * 	which will pass the variable's value to 'callback'
- * 	whenever the variable is set.
+ *	Attach a write trace to the specified variable,
+ *	which will pass the variable's value to 'callback'
+ *	whenever the variable is set.
  *
- * 	When the variable is unset, passes NULL to the callback
- * 	and reattaches the trace.
+ *	When the variable is unset, passes NULL to the callback
+ *	and reattaches the trace.
  */
 Ttk_TraceHandle *Ttk_TraceVariable(
     Tcl_Interp *interp,
@@ -85,7 +85,7 @@ Ttk_TraceHandle *Ttk_TraceVariable(
     Ttk_TraceProc callback,
     void *clientData)
 {
-    Ttk_TraceHandle *h = ckalloc(sizeof(*h));
+    Ttk_TraceHandle *h = (Ttk_TraceHandle *)ckalloc(sizeof(*h));
     int status;
 
     h->interp = interp;
@@ -96,7 +96,7 @@ Ttk_TraceHandle *Ttk_TraceVariable(
 
     status = Tcl_TraceVar2(interp, Tcl_GetString(varnameObj),
 	    NULL, TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,
-	    VarTraceProc, (ClientData)h);
+	    VarTraceProc, h);
 
     if (status != TCL_OK) {
 	Tcl_DecrRefCount(h->varnameObj);
@@ -109,12 +109,12 @@ Ttk_TraceHandle *Ttk_TraceVariable(
 
 /*
  * Ttk_UntraceVariable --
- * 	Remove previously-registered trace and free the handle.
+ *	Remove previously-registered trace and free the handle.
  */
 void Ttk_UntraceVariable(Ttk_TraceHandle *h)
 {
     if (h) {
-	ClientData cd = NULL;
+	void *cd = NULL;
 
 	/*
 	 * Workaround for Tcl Bug 3062331.  The trace design problem is
@@ -137,7 +137,7 @@ void Ttk_UntraceVariable(Ttk_TraceHandle *h)
 	 */
 	while ((cd = Tcl_VarTraceInfo(h->interp, Tcl_GetString(h->varnameObj),
 		TCL_GLOBAL_ONLY, VarTraceProc, cd)) != NULL) {
-	    if (cd == (ClientData) h) {
+	    if (cd == h) {
 		break;
 	    }
 	}
@@ -152,7 +152,7 @@ void Ttk_UntraceVariable(Ttk_TraceHandle *h)
 	}
 	Tcl_UntraceVar2(h->interp, Tcl_GetString(h->varnameObj),
 		NULL, TCL_GLOBAL_ONLY|TCL_TRACE_WRITES|TCL_TRACE_UNSETS,
-		VarTraceProc, (ClientData)h);
+		VarTraceProc, h);
 	Tcl_DecrRefCount(h->varnameObj);
 	ckfree(h);
     }
@@ -160,9 +160,9 @@ void Ttk_UntraceVariable(Ttk_TraceHandle *h)
 
 /*
  * Ttk_FireTrace --
- * 	Executes a trace handle as if the variable has been written.
+ *	Executes a trace handle as if the variable has been written.
  *
- * 	Note: may reenter the interpreter.
+ *	Note: may reenter the interpreter.
  */
 int Ttk_FireTrace(Ttk_TraceHandle *tracePtr)
 {

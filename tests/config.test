@@ -1,15 +1,30 @@
 # This file is a Tcl script to test the procedures in tkConfig.c,
-# which comprise the new new option configuration system.  It is
-# organized in the standard "white-box" fashion for Tcl tests.
+# which comprise the new new option configuration system.
 #
-# Copyright (c) 1997 Sun Microsystems, Inc.
-# Copyright (c) 1998-1999 by Scriptics Corporation.
+# Copyright © 1997 Sun Microsystems, Inc.
+# Copyright © 1998-1999 Scriptics Corporation.
 # All rights reserved.
 
-package require tcltest 2.2
-namespace import ::tcltest::*
-eval tcltest::configure $argv
-tcltest::loadTestedCommands
+#
+# TESTFILE INITIALIZATION
+#
+
+package require tcltest 2.2; # needed in mode -singleproc 0
+
+# Load the main script main.tcl, which takes care of:
+# - setup for the application and the root window
+# - importing commands from the tcltest namespace
+# - loading of the testutils mechanism along with its utility procs
+# - loading of Tk specific test constraints (additionally to constraints
+#   provided by the package tcltest)
+source [file join [tcltest::configure -testdir] main.tcl]
+
+# Ensure a pristine initial window state
+resetWindows
+
+#
+# LOCAL UTILITY PROCS
+#
 
 proc killTables {} {
     # Note: it's important to delete chain2 before chain1, because
@@ -18,13 +33,19 @@ proc killTables {} {
     deleteWindows
     foreach t {alltypes chain3 chain2 chain1 configerror internal
 	    new notenoughparams twowindows} {
-	    while {[testobjconfig info $t] != ""} {
-	        testobjconfig delete $t
+	    while {[testobjconfig info $t] ne ""} {
+		testobjconfig delete $t
 	    }
     }
 }
 
+#
+# TESTS
+#
 
+#
+# COMMON TEST SETUP
+#
 option clear
 deleteWindows
 if {[testConstraint testobjconfig]} {
@@ -42,7 +63,7 @@ test config-1.1 {Tk_CreateOptionTable - reference counts} -constraints {
     set x
 } -cleanup {
     killTables
-} -result {{1 16 -boolean} {2 16 -boolean}}
+} -result {{1 17 -boolean} {2 17 -boolean}}
 test config-1.2 {Tk_CreateOptionTable - synonym initialization} -constraints {
     testobjconfig
 } -body {
@@ -50,7 +71,7 @@ test config-1.2 {Tk_CreateOptionTable - synonym initialization} -constraints {
     .a cget -color
 } -cleanup {
     killTables
-} -result {green}
+} -result green
 test config-1.3 {Tk_CreateOptionTable - option database initialization} -constraints {
     testobjconfig
 } -body {
@@ -77,10 +98,10 @@ test config-1.5 {Tk_CreateOptionTable - default initialization} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .a
-    .a cget -relief
+    .a cget -anchor
 } -cleanup {
     killTables
-} -result {raised}
+} -result center
 test config-1.6 {Tk_CreateOptionTable - chained tables} -constraints {
     testobjconfig
 } -body {
@@ -136,8 +157,6 @@ test config-2.1 {Tk_DeleteOptionTable - reference counts} -constraints {
     killTables
 } -result {{3 4 -three 2 2 -one} {2 2 -one} {} {2 2 -one}}
 
-# No tests for DestroyOptionHashTable; couldn't figure out how to test.
-
 test config-3.1 {Tk_InitOptions - priority of chained tables} -constraints {
     testobjconfig
 } -body {
@@ -156,7 +175,7 @@ test config-3.2 {Tk_InitOptions - initialize from database} -constraints {
 } -cleanup {
     killTables
     option clear
-} -result {blue}
+} -result blue
 test config-3.3 {Tk_InitOptions - initialize from database} -constraints {
     testobjconfig
 } -body {
@@ -166,7 +185,7 @@ test config-3.3 {Tk_InitOptions - initialize from database} -constraints {
 } -cleanup {
     killTables
     option clear
-} -result {left}
+} -result left
 test config-3.4 {Tk_InitOptions - initialize from widget class} -constraints {
     testobjconfig
 } -body {
@@ -174,12 +193,12 @@ test config-3.4 {Tk_InitOptions - initialize from widget class} -constraints {
     list [.a cget -color]
 } -cleanup {
     killTables
-} -result {red}
+} -result red
 test config-3.5 {Tk_InitOptions - no initial value} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .a
-    .a cget -anchor
+    .a cget -relief
 } -cleanup {
     killTables
 } -result {}
@@ -196,7 +215,7 @@ test config-3.7 {Tk_InitOptions - bad initial value} -constraints {
     testobjconfig
 } -body {
     option add *a.color non-existent
-    catch {testobjconfig alltypes .a} 
+    catch {testobjconfig alltypes .a}
     return $errorInfo
 } -cleanup {
     killTables
@@ -210,13 +229,13 @@ test config-3.8 {Tk_InitOptions - bad initial value} -constraints {
     testobjconfig
 } -body {
     testobjconfig configerror
-} -returnCodes error -result {expected integer but got "bogus"}
+} -returnCodes error -result {expected integer or "" but got "bogus"}
 test config-3.9 {Tk_InitOptions - bad initial value} -constraints {
     testobjconfig
 } -body {
     catch {testobjconfig configerror}
     return $errorInfo
-} -result {expected integer but got "bogus"
+} -result {expected integer or "" but got "bogus"
     (default value for "-int")
     invoked from within
 "testobjconfig configerror"}
@@ -227,7 +246,7 @@ test config-4.1 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -boolean 0
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.2 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -235,7 +254,7 @@ test config-4.2 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     .foo cget -boolean
 } -cleanup {
     killTables
-} -returnCodes ok -result {0}
+} -returnCodes ok -result 0
 test config-4.3 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -251,7 +270,7 @@ test config-4.4 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -boolean 1
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.5 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -259,7 +278,7 @@ test config-4.5 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     .foo cget -boolean
 } -cleanup {
     killTables
-} -returnCodes ok -result {1}
+} -returnCodes ok -result 1
 test config-4.6 {DoObjConfig - boolean} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -274,10 +293,10 @@ test config-4.7 {DoObjConfig - invalid boolean} -constraints {
 } -setup {
     catch {rename .foo {}}
 } -body {
-    testobjconfig alltypes .foo -boolean {}
+    testobjconfig alltypes .foo -boolean foo
 } -cleanup {
     killTables
-} -returnCodes error -result {expected boolean value but got ""}
+} -returnCodes error -result {expected boolean value or "" but got "foo"}
 test config-4.8 {DoObjConfig - boolean internal value} -constraints {
     testobjconfig
 } -setup {
@@ -287,7 +306,7 @@ test config-4.8 {DoObjConfig - boolean internal value} -constraints {
     .foo cget -boolean
 } -cleanup {
     killTables
-} -result {0}
+} -result 0
 
 test config-4.9 {DoObjConfig - integer} -constraints testobjconfig -setup {
     catch {rename .foo {}}
@@ -295,7 +314,7 @@ test config-4.9 {DoObjConfig - integer} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -integer 3
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.10 {DoObjConfig - integer} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -303,7 +322,7 @@ test config-4.10 {DoObjConfig - integer} -constraints testobjconfig -setup {
     .foo cget -integer
 } -cleanup {
     killTables
-} -returnCodes ok -result {3}
+} -returnCodes ok -result 3
 test config-4.11 {DoObjConfig - integer} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -333,7 +352,7 @@ test config-4.13 {DoObjConfig - integer internal value} -constraints {
     .foo cget -integer
 } -cleanup {
     killTables
-} -result {421}
+} -result 421
 
 test config-4.14 {DoObjConfig - double} -constraints testobjconfig -setup {
     catch {rename .foo {}}
@@ -341,7 +360,7 @@ test config-4.14 {DoObjConfig - double} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -double 3.14
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.15 {DoObjConfig - double} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -349,7 +368,7 @@ test config-4.15 {DoObjConfig - double} -constraints testobjconfig -setup {
     .foo cget -double
 } -cleanup {
     killTables
-} -returnCodes ok -result {3.14}
+} -returnCodes ok -result 3.14
 test config-4.16 {DoObjConfig - double} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -377,7 +396,7 @@ test config-4.18 {DoObjConfig - double internal value} -constraints {
     .foo cget -double
 } -cleanup {
     killTables
-} -result {62.75}
+} -result 62.75
 
 test config-4.19 {DoObjConfig - string} -constraints testobjconfig -setup {
     catch {rename .foo {}}
@@ -385,7 +404,7 @@ test config-4.19 {DoObjConfig - string} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -string test
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.20 {DoObjConfig - string} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -393,7 +412,7 @@ test config-4.20 {DoObjConfig - string} -constraints testobjconfig -setup {
     .foo cget -string
 } -cleanup {
     killTables
-} -returnCodes ok -result {test}
+} -returnCodes ok -result test
 test config-4.21 {DoObjConfig - string} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -409,7 +428,7 @@ test config-4.22 {DoObjConfig - null string} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -string {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.23 {DoObjConfig - null string} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -443,13 +462,13 @@ test config-4.26 {DoObjConfig - string table} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -stringtable two
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.27 {DoObjConfig - string table} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -stringtable two
     .foo cget -stringtable
 } -cleanup {
     killTables
-} -returnCodes ok -result {two}
+} -returnCodes ok -result two
 test config-4.28 {DoObjConfig - string table} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -stringtable two
     .foo cget -stringtable
@@ -463,8 +482,14 @@ test config-4.29 {DoObjConfig - invalid string table} -constraints {
     testobjconfig alltypes .foo -stringtable foo
 } -cleanup {
     killTables
-} -returnCodes error -result {bad stringtable "foo": must be one, two, three, or four}
-
+} -returnCodes error -result {bad stringtable "foo": must be one, two, three, four, or ""}
+test config-4.29a {DoObjConfig - invalid string table} -constraints {
+    testobjconfig
+} -body {
+    testobjconfig alltypes .foo -stringtable2 foo
+} -cleanup {
+    killTables
+} -returnCodes error -result {bad stringtable2 "foo": must be one, two, or ""}
 test config-4.30 {DoObjConfig - new string table} -constraints {
     testobjconfig
 } -body {
@@ -472,7 +497,7 @@ test config-4.30 {DoObjConfig - new string table} -constraints {
     .foo configure -stringtable three
 } -cleanup {
     killTables
-} -returnCodes ok -result {16}
+} -returnCodes ok -result 16
 test config-4.31 {DoObjConfig - new string table} -constraints {
     testobjconfig
 } -body {
@@ -481,7 +506,7 @@ test config-4.31 {DoObjConfig - new string table} -constraints {
     .foo cget -stringtable
 } -cleanup {
     killTables
-} -returnCodes ok -result {three}
+} -returnCodes ok -result three
 test config-4.32 {DoObjConfig - new string table} -constraints {
     testobjconfig
 } -body {
@@ -501,19 +526,19 @@ test config-4.33 {DoObjConfig - stringtable internal value} -constraints {
     .foo cget -stringtable
 } -cleanup {
     killTables
-} -result {four}
+} -result four
 
 test config-4.34 {DoObjConfig - color} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -color blue
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.35 {DoObjConfig - color} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -color blue
     .foo cget -color
 } -cleanup {
     killTables
-} -returnCodes ok -result {blue}
+} -returnCodes ok -result blue
 test config-4.36 {DoObjConfig - color} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -color blue
     .foo cget -color
@@ -537,13 +562,13 @@ test config-4.38 {DoObjConfig - color internal value} -constraints {
     .foo cget -color
 } -cleanup {
     killTables
-} -result {purple}
+} -result purple
 
 test config-4.39 {DoObjConfig - null color} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -color {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.40 {DoObjConfig - null color} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -color {}
     .foo cget -color
@@ -558,15 +583,15 @@ test config-4.41 {DoObjConfig - null color} -constraints testobjconfig -body {
     killTables
 } -returnCodes ok
 test config-4.42 {DoObjConfig - getting rid of old color} -constraints {
-    testobjconfig 
+    testobjconfig
 } -body {
     testobjconfig alltypes .foo -color #333333
     .foo configure -color #444444
 } -cleanup {
     killTables
-} -returnCodes ok -result {32}
+} -returnCodes ok -result 32
 test config-4.43 {DoObjConfig - getting rid of old color} -constraints {
-    testobjconfig 
+    testobjconfig
 } -body {
     testobjconfig alltypes .foo -color #333333
     .foo configure -color #444444
@@ -575,7 +600,7 @@ test config-4.43 {DoObjConfig - getting rid of old color} -constraints {
     killTables
 } -returnCodes ok -result {#444444}
 test config-4.44 {DoObjConfig - getting rid of old color} -constraints {
-    testobjconfig 
+    testobjconfig
 } -body {
     testobjconfig alltypes .foo -color #333333
     .foo configure -color #444444
@@ -591,7 +616,7 @@ test config-4.45 {DoObjConfig - font} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -font {Helvetica 72}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.46 {DoObjConfig - font} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -607,7 +632,7 @@ test config-4.47 {DoObjConfig - new font} -constraints testobjconfig -setup {
     .foo configure -font {Helvetica 72}
 } -cleanup {
     killTables
-} -returnCodes ok -result {64}
+} -returnCodes ok -result 64
 test config-4.48 {DoObjConfig - new font} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -632,7 +657,7 @@ test config-4.50 {DoObjConfig - null font} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -font {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.51 {DoObjConfig - null font} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -656,38 +681,38 @@ test config-4.53 {DoObjConfig - bitmap} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -bitmap gray75
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.54 {DoObjConfig - bitmap} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -bitmap gray75
     .foo cget -bitmap
 } -cleanup {
     killTables
-} -returnCodes ok -result {gray75}
+} -returnCodes ok -result gray75
 test config-4.55 {DoObjConfig - new bitmap} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -bitmap gray75
-    .foo configure -bitmap gray50 
+    .foo configure -bitmap gray50
 } -cleanup {
     killTables
-} -returnCodes ok -result {128}
+} -returnCodes ok -result 128
 test config-4.56 {DoObjConfig - new bitmap} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -bitmap gray75
-    .foo configure -bitmap gray50 
+    .foo configure -bitmap gray50
     .foo cget -bitmap
 } -cleanup {
     killTables
-} -returnCodes ok -result {gray50}
+} -returnCodes ok -result gray50
 test config-4.57 {DoObjConfig - invalid bitmap} -constraints {
     testobjconfig
 } -body {
-    testobjconfig alltypes .foo -bitmap foo
+    testobjconfig alltypes .foo -bitmap foobar
 } -cleanup {
     killTables
-} -returnCodes error -result {bitmap "foo" not defined}
+} -returnCodes error -result {bitmap "foobar" not defined}
 test config-4.58 {DoObjConfig - null bitmap} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -bitmap {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.59 {DoObjConfig - null bitmap} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -bitmap {}
     .foo cget -bitmap
@@ -703,19 +728,19 @@ test config-4.60 {DoObjConfig - bitmap internal value} -constraints {
     .foo cget -bitmap
 } -cleanup {
     killTables
-} -result {gray25}
+} -result gray25
 
 test config-4.61 {DoObjConfig - border} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -border green
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.62 {DoObjConfig - border} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -border green
     .foo cget -border
 } -cleanup {
     killTables
-} -returnCodes ok -result {green}
+} -returnCodes ok -result green
 test config-4.63 {DoObjConfig - invalid border} -constraints {
     testobjconfig
 } -body {
@@ -727,7 +752,7 @@ test config-4.64 {DoObjConfig - null border} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -border {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.65 {DoObjConfig - null border} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -border {}
     .foo cget -border
@@ -745,15 +770,15 @@ test config-4.66 {DoObjConfig - border internal value} -constraints {
     killTables
 } -result {#123456}
 test config-4.67 {DoObjConfig - getting rid of old border} -constraints {
-    testobjconfig 
+    testobjconfig
 } -body {
     testobjconfig alltypes .foo -border #333333
     .foo configure -border #444444
 } -cleanup {
     killTables
-} -returnCodes ok -result {256}
+} -returnCodes ok -result 256
 test config-4.68 {DoObjConfig - getting rid of old border} -constraints {
-    testobjconfig 
+    testobjconfig
 } -body {
     testobjconfig alltypes .foo -border #333333
     .foo configure -border #444444
@@ -766,20 +791,20 @@ test config-4.69 {DoObjConfig - relief} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -relief flat
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.70 {DoObjConfig - relief} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -relief flat
     .foo cget -relief
 } -cleanup {
     killTables
-} -returnCodes ok -result {flat}
+} -returnCodes ok -result flat
 test config-4.71 {DoObjConfig - invalid relief} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .foo -relief foo
 } -cleanup {
     killTables
-} -returnCodes error -result {bad relief "foo": must be flat, groove, raised, ridge, solid, or sunken}
+} -returnCodes error -result {bad relief "foo": must be flat, groove, raised, ridge, solid, sunken, or ""}
 test config-4.72 {DoObjConfig - relief internal value} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -787,32 +812,32 @@ test config-4.72 {DoObjConfig - relief internal value} -constraints testobjconfi
     .foo cget -relief
 } -cleanup {
     killTables
-} -result {ridge}
+} -result ridge
 test config-4.73 {DoObjConfig - new relief} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -relief raised
-    .foo configure -relief flat 
+    .foo configure -relief flat
 } -cleanup {
     killTables
-} -returnCodes ok -result {512}
+} -returnCodes ok -result 512
 test config-4.74 {DoObjConfig - new relief} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -relief raised
-    .foo configure -relief flat 
+    .foo configure -relief flat
     .foo cget -relief
 } -cleanup {
     killTables
-} -returnCodes ok -result {flat}
+} -returnCodes ok -result flat
 
 test config-4.75 {DoObjConfig - cursor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -cursor arrow
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.76 {DoObjConfig - cursor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -cursor arrow
     .foo cget -cursor
 } -cleanup {
     killTables
-} -returnCodes ok -result {arrow}
+} -returnCodes ok -result arrow
 test config-4.77 {DoObjConfig - invalid cursor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -cursor foo
 } -cleanup {
@@ -824,7 +849,7 @@ test config-4.78 {DoObjConfig - null cursor} -constraints testobjconfig -setup {
     testobjconfig alltypes .foo -cursor {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.79 {DoObjConfig - null cursor} -constraints testobjconfig -setup {
     catch {rename .foo {}}
 } -body {
@@ -838,14 +863,14 @@ test config-4.80 {DoObjConfig - new cursor} -constraints testobjconfig -body {
     .foo configure -cursor arrow
 } -cleanup {
     killTables
-} -returnCodes ok -result {1024}
+} -returnCodes ok -result 1024
 test config-4.81 {DoObjConfig - new cursor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -cursor xterm
     .foo configure -cursor arrow
     .foo cget -cursor
 } -cleanup {
     killTables
-} -returnCodes ok -result {arrow}
+} -returnCodes ok -result arrow
 test config-4.82 {DoObjConfig - cursor internal value} -constraints {
     testobjconfig
 } -setup {
@@ -855,37 +880,37 @@ test config-4.82 {DoObjConfig - cursor internal value} -constraints {
     .foo cget -cursor
 } -cleanup {
     killTables
-} -result {watch}
+} -result watch
 
 test config-4.83 {DoObjConfig - justify} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -justify center
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.84 {DoObjConfig - justify} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -justify center
     .foo cget -justify
 } -cleanup {
     killTables
-} -returnCodes ok -result {center}
+} -returnCodes ok -result center
 test config-4.85 {DoObjConfig - invalid justify} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -justify foo
 } -cleanup {
     killTables
-} -returnCodes error -result {bad justification "foo": must be left, right, or center}
+} -returnCodes error -result {bad justification "foo": must be left, right, center, or ""}
 test config-4.86 {DoObjConfig - new justify} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -justify left
     .foo configure -justify right
 } -cleanup {
     killTables
-} -returnCodes ok -result {2048}
+} -returnCodes ok -result 2048
 test config-4.87 {DoObjConfig - new justify} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -justify left
     .foo configure -justify right
     .foo cget -justify
 } -cleanup {
     killTables
-} -returnCodes ok -result {right}
+} -returnCodes ok -result right
 test config-4.88 {DoObjConfig - justify internal value} -constraints {
     testobjconfig
 } -setup {
@@ -895,37 +920,37 @@ test config-4.88 {DoObjConfig - justify internal value} -constraints {
     .foo cget -justify
 } -cleanup {
     killTables
-} -result {center}
+} -result center
 
 test config-4.89 {DoObjConfig - anchor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -anchor center
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.90 {DoObjConfig - anchor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -anchor center
     .foo cget -anchor
 } -cleanup {
     killTables
-} -returnCodes ok -result {center}
+} -returnCodes ok -result center
 test config-4.91 {DoObjConfig - invalid anchor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -anchor foo
 } -cleanup {
     killTables
-} -returnCodes error -result {bad anchor "foo": must be n, ne, e, se, s, sw, w, nw, or center}
+} -returnCodes error -result {bad anchor "foo": must be n, ne, e, se, s, sw, w, nw, center, or ""}
 test config-4.92 {DoObjConfig - new anchor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -anchor e
-    .foo configure -anchor n 
+    .foo configure -anchor n
 } -cleanup {
     killTables
-} -returnCodes ok -result {4096}
+} -returnCodes ok -result 4096
 test config-4.93 {DoObjConfig - new anchor} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -anchor e
     .foo configure -anchor n
     .foo cget -anchor
 } -cleanup {
     killTables
-} -returnCodes ok -result {n}
+} -returnCodes ok -result n
 test config-4.94 {DoObjConfig - anchor internal value} -constraints {
     testobjconfig
 } -setup {
@@ -935,36 +960,36 @@ test config-4.94 {DoObjConfig - anchor internal value} -constraints {
     .foo cget -anchor
 } -cleanup {
     killTables
-} -result {sw}
+} -result sw
 test config-4.95 {DoObjConfig - pixel} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -pixel 42
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.96 {DoObjConfig - pixel} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -pixel 42
     .foo cget -pixel
 } -cleanup {
     killTables
-} -returnCodes ok -result {42}
+} -returnCodes ok -result 42
 test config-4.97 {DoObjConfig - invalid pixel} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -pixel foo
 } -cleanup {
     killTables
-} -returnCodes error -result {bad screen distance "foo"}
+} -returnCodes error -result {expected screen distance or "" but got "foo"}
 test config-4.98 {DoObjConfig - new pixel} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -pixel 42m
     .foo configure -pixel 3c
 } -cleanup {
     killTables
-} -returnCodes ok -result {8192}
+} -returnCodes ok -result 8192
 test config-4.99 {DoObjConfig - new pixel} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -pixel 42m
     .foo configure -pixel 3c
     .foo cget -pixel
 } -cleanup {
     killTables
-} -returnCodes ok -result {3c}
+} -returnCodes ok -result 3c
 test config-4.100 {DoObjConfig - pixel internal value} -constraints {
     testobjconfig
 } -setup {
@@ -976,24 +1001,24 @@ test config-4.100 {DoObjConfig - pixel internal value} -constraints {
     expr {$screenW eq $result}
 } -cleanup {
     killTables
-} -result {1}
+} -result 1
 
 test config-4.101 {DoObjConfig - window} -constraints testobjconfig -body {
     toplevel .bar
     testobjconfig twowindows .foo -window .bar
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.102 {DoObjConfig - window} -constraints testobjconfig -body {
     toplevel .bar
     testobjconfig twowindows .foo -window .bar
     .foo cget -window
 } -cleanup {
     killTables
-} -returnCodes ok -result {.bar}
+} -returnCodes ok -result .bar
 test config-4.103 {DoObjConfig - invalid window} -constraints testobjconfig -body {
     toplevel .bar
-    testobjconfig twowindows .foo -window foo 
+    testobjconfig twowindows .foo -window foo
 } -cleanup {
     killTables
 } -returnCodes error -result {bad window path name "foo"}
@@ -1002,7 +1027,7 @@ test config-4.104 {DoObjConfig - null window} -constraints testobjconfig -body {
     testobjconfig twowindows .foo -window {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.105 {DoObjConfig - null window} -constraints testobjconfig -body {
     toplevel .bar
     testobjconfig twowindows .foo -window {}
@@ -1017,7 +1042,7 @@ test config-4.106 {DoObjConfig - new window} -constraints testobjconfig -body {
     .foo configure -window .blamph
 } -cleanup {
     killTables
-} -returnCodes ok -result {0}
+} -returnCodes ok -result 0
 test config-4.107 {DoObjConfig - new window} -constraints testobjconfig -body {
     toplevel .bar
     toplevel .blamph
@@ -1026,7 +1051,7 @@ test config-4.107 {DoObjConfig - new window} -constraints testobjconfig -body {
     .foo cget -window
 } -cleanup {
     killTables
-} -returnCodes ok -result {.blamph}
+} -returnCodes ok -result .blamph
 test config-4.108 {DoObjConfig - window internal value} -constraints {
     testobjconfig
 } -setup {
@@ -1036,7 +1061,7 @@ test config-4.108 {DoObjConfig - window internal value} -constraints {
     .foo cget -window
 } -cleanup {
     killTables
-} -result {.}
+} -result .
 
 test config-4.109 {DoObjConfig - releasing old values} -constraints {
     testobjconfig
@@ -1081,18 +1106,18 @@ test config-4.111 {DoObjConfig - custom} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -custom test
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.112 {DoObjConfig - custom} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -custom test
     .foo cget -custom
 } -cleanup {
     killTables
-} -returnCodes ok -result {TEST}
+} -returnCodes ok -result TEST
 test config-4.113 {DoObjConfig - null custom} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -custom {}
 } -cleanup {
     killTables
-} -returnCodes ok -result {.foo}
+} -returnCodes ok -result .foo
 test config-4.114 {DoObjConfig - null custom} -constraints testobjconfig -body {
     testobjconfig alltypes .foo -custom {}
     .foo cget -custom
@@ -1111,7 +1136,7 @@ test config-4.115 {DoObjConfig - custom internal value} -constraints {
 }  -result {THIS IS A TEST}
 
 
-test config-5.1 {ObjectIsEmpty - object is already string} -constraints {
+test config-5.1 {TkObjIsEmpty - object is already string} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .foo -color [format ""]
@@ -1119,14 +1144,14 @@ test config-5.1 {ObjectIsEmpty - object is already string} -constraints {
 } -cleanup {
     killTables
 }  -result {}
-test config-5.2 {ObjectIsEmpty - object is already string} -constraints {
+test config-5.2 {TkObjIsEmpty - object is already string} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .foo -color [format " "]
 } -cleanup {
     killTables
 } -returnCodes error -result {unknown color name " "}
-test config-5.3 {ObjectIsEmpty - must convert back to string} -constraints {
+test config-5.3 {TkObjIsEmpty - must convert back to string} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .foo -color [list]
@@ -1151,7 +1176,7 @@ test config-6.2 {GetOptionFromObj - exact match} -constraints {
     .a cget -one
 } -cleanup {
     killTables
-} -result {one}
+} -result one
 test config-6.3 {GetOptionFromObj - abbreviation} -constraints {
     testobjconfig
 } -body {
@@ -1159,7 +1184,7 @@ test config-6.3 {GetOptionFromObj - abbreviation} -constraints {
     .a cget -fo
 } -cleanup {
     killTables
-} -result {four}
+} -result four
 test config-6.4 {GetOptionFromObj - ambiguous abbreviation} -constraints {
     testobjconfig
 } -body {
@@ -1183,12 +1208,15 @@ test config-6.6 {GetOptionFromObj - synonym} -constraints testobjconfig -body {
     .b cget -synonym
 } -cleanup {
     killTables
-} -result {red}
+} -result red
 
-
+#
+# COMMON TEST SETUP
+#
 if {[testConstraint testobjconfig]} {
     testobjconfig alltypes .a
 }
+
 test config-7.1 {Tk_SetOptions - basics} -constraints testobjconfig -body {
     .a configure -color green -rel sunken
      list [.a cget -color] [.a cget -relief]
@@ -1201,23 +1229,23 @@ test config-7.2 {Tk_SetOptions - bogus option name} -constraints {
 test config-7.3 {Tk_SetOptions - synonym} -constraints testobjconfig -body {
     .a configure -synonym blue
     .a cget -color
-} -result {blue}
+} -result blue
 test config-7.4 {Tk_SetOptions - missing value} -constraints {
     testobjconfig
 } -body {
-    .a configure -color green -relief 
+    .a configure -color green -relief
 } -returnCodes error -result {value for "-relief" missing}
 test config-7.5 {Tk_SetOptions - missing value} -constraints {
     testobjconfig
 } -body {
-    catch {.a configure -color green -relief} 
+    catch {.a configure -color green -relief}
     .a cget -color
-} -result {green}
+} -result green
 test config-7.6 {Tk_SetOptions - saving old values} -constraints {
     testobjconfig
 } -body {
     .a configure -color red -int 7 -relief raised -double 3.14159
-    .a csave -color green -int 432 -relief sunken -double 2.0 -color bogus 
+    .a csave -color green -int 432 -relief sunken -double 2.0 -color bogus
 } -returnCodes error -result {unknown color name "bogus"}
 test config-7.7 {Tk_SetOptions - saving old values} -constraints {
     testobjconfig
@@ -1230,7 +1258,7 @@ test config-7.7 {Tk_SetOptions - saving old values} -constraints {
 test config-7.8 {Tk_SetOptions - error in DoObjConfig call} -constraints {
     testobjconfig
 } -body {
-    .a configure -color bogus 
+    .a configure -color bogus
 } -returnCodes error -result {unknown color name "bogus"}
 test config-7.9 {Tk_SetOptions - error in DoObjConfig call} -constraints {
     testobjconfig
@@ -1258,11 +1286,11 @@ test config-7.11 {Tk_SetOptions - synonym name in error message} -constraints {
 ".a configure -synonym bogus"}
 test config-7.12 {Tk_SetOptions - returning mask} -constraints testobjconfig -body {
     format %x [.a configure -color red -int 7 -relief raised -double 3.14159]
-} -result {226}
+} -result 226
 test config-7.13 {Tk_SetOptions - error in DoObjConfig with custom option} -constraints {
     testobjconfig
 } -body {
-    .a configure -custom bad 
+    .a configure -custom bad
 } -returnCodes error -result {expected good value, got "BAD"}
 test config-7.14 {Tk_SetOptions - error in DoObjConfig with custom option} -constraints {
     testobjconfig
@@ -1273,17 +1301,20 @@ test config-7.14 {Tk_SetOptions - error in DoObjConfig with custom option} -cons
     (processing "-custom" option)
     invoked from within
 ".a configure -custom bad"}
+
+#
+# COMMON TEST CLEANUP
+#
 if {[testConstraint testobjconfig]} {
     killTables
 }
-
 
 test config-8.1 {Tk_RestoreSavedOptions - restore in proper order} -constraints {
     testobjconfig
 } -body {
     testobjconfig alltypes .a
     .a csave -color green -color black -color blue \
-        -color #ffff00 -color #ff00ff -color bogus \
+	-color #ffff00 -color #ff00ff -color bogus \
 } -cleanup {
     killTables
 } -returnCodes error -result {unknown color name "bogus"}
@@ -1296,7 +1327,7 @@ test config-8.2 {Tk_RestoreSavedOptions - restore in proper order} -constraints 
 	.a cget -color
 } -cleanup {
     killTables
-} -result {red}
+} -result red
 test config-8.3 {Tk_RestoreSavedOptions - freeing object memory} -constraints {
     testobjconfig
 } -body {
@@ -1304,7 +1335,7 @@ test config-8.3 {Tk_RestoreSavedOptions - freeing object memory} -constraints {
     .a csave -color green -color black -color blue -color #ffff00 -color #ff00ff
 } -cleanup {
     killTables
-} -result {32}
+} -result 32
 test config-8.4 {Tk_RestoreSavedOptions - boolean internal form} -constraints {
     testobjconfig
 } -body {
@@ -1321,7 +1352,7 @@ test config-8.5 {Tk_RestoreSavedOptions - boolean internal form} -constraints {
     .a cget -boolean
 } -cleanup {
     killTables
-} -result {1}
+} -result 1
 test config-8.6 {Tk_RestoreSavedOptions - integer internal form} -constraints {
     testobjconfig
 } -body {
@@ -1338,7 +1369,7 @@ test config-8.7 {Tk_RestoreSavedOptions - integer internal form} -constraints {
     .a cget -integer
 } -cleanup {
     killTables
-} -result {148962237}
+} -result 148962237
 test config-8.8 {Tk_RestoreSavedOptions - double internal form} -constraints {
     testobjconfig
 } -body {
@@ -1347,7 +1378,7 @@ test config-8.8 {Tk_RestoreSavedOptions - double internal form} -constraints {
     .a cget -double
 } -cleanup {
     killTables
-} -result {3.14159}
+} -result 3.14159
 test config-8.9 {Tk_RestoreSavedOptions - string internal form} -constraints {
     testobjconfig
 } -body {
@@ -1356,7 +1387,7 @@ test config-8.9 {Tk_RestoreSavedOptions - string internal form} -constraints {
 	.a cget -string
 } -cleanup {
     killTables
-} -result {foo}
+} -result foo
 test config-8.10 {Tk_RestoreSavedOptions - string table internal form} -constraints {
     testobjconfig
 } -body {
@@ -1365,7 +1396,7 @@ test config-8.10 {Tk_RestoreSavedOptions - string table internal form} -constrai
 	.a cget -stringtable
 } -cleanup {
     killTables
-} -result {one}
+} -result one
 test config-8.11 {Tk_RestoreSavedOptions - color internal form} -constraints {
     testobjconfig
 } -body {
@@ -1374,7 +1405,7 @@ test config-8.11 {Tk_RestoreSavedOptions - color internal form} -constraints {
     .a cget -color
 } -cleanup {
     killTables
-} -result {red}
+} -result red
 test config-8.12 {Tk_RestoreSavedOptions - font internal form} -constraints {
     testobjconfig nonPortable
 } -body {
@@ -1392,7 +1423,7 @@ test config-8.13 {Tk_RestoreSavedOptions - bitmap internal form} -constraints {
     .a cget -bitmap
 } -cleanup {
     killTables
-} -result {gray50}
+} -result gray50
 test config-8.14 {Tk_RestoreSavedOptions - border internal form} -constraints {
     testobjconfig
 } -body {
@@ -1401,16 +1432,16 @@ test config-8.14 {Tk_RestoreSavedOptions - border internal form} -constraints {
     .a cget -border
 } -cleanup {
     killTables
-} -result {blue}
-test config-8.15 {Tk_RestoreSavedOptions - relief internal form} -constraints {
+} -result blue
+test config-8.15 {Tk_RestoreSavedOptions - anchor internal form} -constraints {
     testobjconfig
 } -body {
     testobjconfig internal .a
-    catch {.a csave -relief sunken -color bogus}
-    .a cget -relief
+    catch {.a csave -anchor e -color bogus}
+    .a cget -anchor
 } -cleanup {
     killTables
-} -result {raised}
+} -result center
 test config-8.16 {Tk_RestoreSavedOptions - cursor internal form} -constraints {
     testobjconfig
 } -body {
@@ -1419,7 +1450,7 @@ test config-8.16 {Tk_RestoreSavedOptions - cursor internal form} -constraints {
     .a cget -cursor
 } -cleanup {
     killTables
-} -result {xterm}
+} -result xterm
 test config-8.17 {Tk_RestoreSavedOptions - justify internal form} -constraints {
     testobjconfig
 } -body {
@@ -1428,16 +1459,16 @@ test config-8.17 {Tk_RestoreSavedOptions - justify internal form} -constraints {
     .a cget -justify
 } -cleanup {
     killTables
-} -result {left}
+} -result left
 test config-8.18 {Tk_RestoreSavedOptions - anchor internal form} -constraints {
     testobjconfig
 } -body {
     testobjconfig internal .a
-    catch {.a csave -anchor center -color bogus}
+    catch {.a csave -anchor n -color bogus}
     .a cget -anchor
 } -cleanup {
     killTables
-} -result {n}
+} -result center
 test config-8.19 {Tk_RestoreSavedOptions - window internal form} -constraints {
     testobjconfig
 } -body {
@@ -1446,7 +1477,7 @@ test config-8.19 {Tk_RestoreSavedOptions - window internal form} -constraints {
     .a cget -window
 } -cleanup {
     killTables
-} -result {.a}
+} -result .a
 test config-8.20 {Tk_RestoreSavedOptions - custom internal form} -constraints {
     testobjconfig
 } -body {
@@ -1455,7 +1486,7 @@ test config-8.20 {Tk_RestoreSavedOptions - custom internal form} -constraints {
     .a cget -custom
 } -cleanup {
     killTables
-} -result {FOOBAR}
+} -result FOOBAR
 
 # Most of the tests below will cause memory leakage if there is a
 # problem.  This may not be evident unless the tests are run in
@@ -1553,18 +1584,21 @@ test config-9.13 {Tk_FreeConfigOptions/FreeResources - custom internal form} -co
     .foo configure -custom "foobar"
     destroy .foo
 } -result {}
+
+#
+# COMMON TEST CLEANUP
+#
 if {[testConstraint testobjconfig]} {
     killTables
 }
 
-
 test config-10.1 {Tk_GetOptionInfo - one item} -constraints testobjconfig -body {
     testobjconfig alltypes .foo
-    .foo configure -relief groove
-    .foo configure -relief
+    .foo configure -anchor e
+    .foo configure -anchor
 } -cleanup {
     destroy .foo
-} -result {-relief relief Relief raised groove}
+} -result {-anchor anchor Anchor center e}
 test config-10.2 {Tk_GetOptionInfo - one item, synonym} -constraints {
     testobjconfig
 } -body {
@@ -1581,21 +1615,22 @@ test config-10.3 {Tk_GetOptionInfo - all items} -constraints {
     .foo configure
 } -cleanup {
     destroy .foo
-} -result {{-boolean boolean Boolean 1 1} {-integer integer Integer 7 13563} {-double double Double 3.14159 3.14159} {-string string String foo foo} {-stringtable StringTable stringTable one one} {-color color Color red red} {-font font Font {Helvetica 12} {Helvetica 18}} {-bitmap bitmap Bitmap gray50 gray50} {-border border Border blue blue} {-relief relief Relief raised raised} {-cursor cursor Cursor xterm xterm} {-justify {} {} left left} {-anchor anchor Anchor {} {}} {-pixel pixel Pixel 1 1} {-custom {} {} {} {}} {-synonym -color}}
+} -result {{-boolean boolean Boolean {} {}} {-integer integer Integer 7 13563} {-double double Double 3.14159 3.14159} {-string string String foo foo} {-stringtable StringTable stringTable one one} {-stringtable2 StringTable2 stringTable2 two two} {-color color Color red red} {-font font Font {Helvetica 12} {Helvetica 18}} {-bitmap bitmap Bitmap gray50 gray50} {-border border Border blue blue} {-relief relief Relief {} {}} {-cursor cursor Cursor xterm xterm} {-justify {} {} left left} {-anchor anchor Anchor center center} {-pixel pixel Pixel 1 1} {-custom {} {} {} {}} {-synonym -color}}
 test config-10.4 {Tk_GetOptionInfo - chaining through tables} -constraints testobjconfig -body {
     testobjconfig chain2 .foo -one asdf -three xyzzy
     .foo configure
 } -cleanup {
     destroy .foo
 } -result {{-three three Three three xyzzy} {-four four Four four four} {-two two Two {two and a half} {two and a half}} {-oneAgain oneAgain OneAgain {one again} {one again}} {-one one One one asdf} {-two two Two two {two and a half}}}
+
+#
+# COMMON TEST SETUP
+#
 if {[testConstraint testobjconfig]} {
     killTables
-}
-
-
-if {[testConstraint testobjconfig]} {
     testobjconfig alltypes .a
 }
+
 test config-11.1 {GetConfigList - synonym} -constraints testobjconfig -body {
     lindex [.a configure] end
 } -result {-synonym -color}
@@ -1607,24 +1642,25 @@ test config-11.2 {GetConfigList - null database names} -constraints {
 test config-11.3 {GetConfigList - null default and current value} -constraints {
     testobjconfig
 } -body {
-    .a configure -anchor
-} -result {-anchor anchor Anchor {} {}}
+    .a configure -relief
+} -result {-relief relief Relief {} {}}
+
+#
+# COMMON TEST SETUP
+#
 if {[testConstraint testobjconfig]} {
     killTables
-}
-
-
-if {[testConstraint testobjconfig]} {
     testobjconfig internal .a
 }
+
 test config-12.1 {GetObjectForOption - boolean} -constraints testobjconfig -body {
     .a configure -boolean 0
     .a cget -boolean
-} -result {0}
+} -result 0
 test config-12.2 {GetObjectForOption - integer} -constraints testobjconfig -body {
     .a configure -integer 1247
     .a cget -integer
-} -result {1247}
+} -result 1247
 test config-12.3 {GetObjectForOption - double} -constraints testobjconfig -body {
     .a configure -double -88.82
     .a cget -double
@@ -1638,11 +1674,11 @@ test config-12.5 {GetObjectForOption - stringTable} -constraints {
 } -body {
     .a configure -stringtable "two"
     .a cget -stringtable
-} -result {two}
+} -result two
 test config-12.6 {GetObjectForOption - color} -constraints testobjconfig -body {
     .a configure -color "green"
     .a cget -color
-} -result {green}
+} -result green
 test config-12.7 {GetObjectForOption - font} -constraints testobjconfig -body {
     .a configure -font {Times 36}
     .a cget -font
@@ -1650,7 +1686,7 @@ test config-12.7 {GetObjectForOption - font} -constraints testobjconfig -body {
 test config-12.8 {GetObjectForOption - bitmap} -constraints testobjconfig -body {
     .a configure -bitmap "questhead"
     .a cget -bitmap
-} -result {questhead}
+} -result questhead
 test config-12.9 {GetObjectForOption - border} -constraints testobjconfig -body {
     .a configure -border #33217c
     .a cget -border
@@ -1660,35 +1696,35 @@ test config-12.10 {GetObjectForOption - relief} -constraints {
 } -body {
     .a configure -relief groove
     .a cget -relief
-} -result {groove}
+} -result groove
 test config-12.11 {GetObjectForOption - cursor} -constraints {
     testobjconfig
 } -body {
     .a configure -cursor watch
     .a cget -cursor
-} -result {watch}
+} -result watch
 test config-12.12 {GetObjectForOption - justify} -constraints {
     testobjconfig
 } -body {
     .a configure -justify right
     .a cget -justify
-} -result {right}
+} -result right
 test config-12.13 {GetObjectForOption - anchor} -constraints testobjconfig -body {
     .a configure -anchor e
     .a cget -anchor
-} -result {e}
+} -result e
 test config-12.14 {GetObjectForOption - pixels} -constraints testobjconfig -body {
     .a configure -pixel 193.2
     .a cget -pixel
-} -result {193}
+} -result 193
 test config-12.15 {GetObjectForOption - window} -constraints testobjconfig -body {
     .a configure -window .a
     .a cget -window
-} -result {.a}
+} -result .a
 test config-12.16 {GetObjectForOption -custom} -constraints testobjconfig -body {
     .a configure -custom foobar
     .a cget -custom
-} -result {FOOBAR}
+} -result FOOBAR
 test config-12.17 {GetObjectForOption - null values} -constraints {
     testobjconfig
 } -body {
@@ -1698,10 +1734,13 @@ test config-12.17 {GetObjectForOption - null values} -constraints {
 	    [.a cget -bitmap] [.a cget -border] [.a cget -cursor] \
 	    [.a cget -window] [.a cget -custom]
 } -result {{} {} {} {} {} {} {} {}}
+
+#
+# COMMON TEST CLEANUP
+#
 if {[testConstraint testobjconfig]} {
     killTables
 }
-
 
 test config-13.1 {proper cleanup of options with widget destroy} -body {
     button .w -cursor crosshair
@@ -1760,10 +1799,10 @@ test config-14.1 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::button
-        ::foo::button .a
-        ::foo::button .b
-        }
+	namespace import -force ::button
+	::foo::button .a
+	::foo::button .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1771,10 +1810,10 @@ test config-14.2 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::canvas
-        ::foo::canvas .a
-        ::foo::canvas .b
-        }
+	namespace import -force ::canvas
+	::foo::canvas .a
+	::foo::canvas .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1782,10 +1821,10 @@ test config-14.3 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::entry
-        ::foo::entry .a
-        ::foo::entry .b
-        }
+	namespace import -force ::entry
+	::foo::entry .a
+	::foo::entry .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1793,10 +1832,10 @@ test config-14.4 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::frame
-        ::foo::frame .a
-        ::foo::frame .b
-        }
+	namespace import -force ::frame
+	::foo::frame .a
+	::foo::frame .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1804,10 +1843,10 @@ test config-14.5 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::listbox
-        ::foo::listbox .a
-        ::foo::listbox .b
-        }
+	namespace import -force ::listbox
+	::foo::listbox .a
+	::foo::listbox .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1815,10 +1854,10 @@ test config-14.6 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::menu
-        ::foo::menu .a
-        ::foo::menu .b
-        }
+	namespace import -force ::menu
+	::foo::menu .a
+	::foo::menu .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1826,10 +1865,10 @@ test config-14.7 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::menubutton
-        ::foo::menubutton .a
-        ::foo::menubutton .b
-        }
+	namespace import -force ::menubutton
+	::foo::menubutton .a
+	::foo::menubutton .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1837,10 +1876,10 @@ test config-14.8 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::message
-        ::foo::message .a
-        ::foo::message .b
-        }
+	namespace import -force ::message
+	::foo::message .a
+	::foo::message .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1848,10 +1887,10 @@ test config-14.9 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::scale
-        ::foo::scale .a
-        ::foo::scale .b
-        }
+	namespace import -force ::scale
+	::foo::scale .a
+	::foo::scale .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1859,10 +1898,10 @@ test config-14.10 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::scrollbar
-        ::foo::scrollbar .a
-        ::foo::scrollbar .b
-        }
+	namespace import -force ::scrollbar
+	::foo::scrollbar .a
+	::foo::scrollbar .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1870,10 +1909,10 @@ test config-14.11 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::spinbox
-        ::foo::spinbox .a
-        ::foo::spinbox .b
-        }
+	namespace import -force ::spinbox
+	::foo::spinbox .a
+	::foo::spinbox .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1881,10 +1920,10 @@ test config-14.12 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::text
-        ::foo::text .a
-        ::foo::text .b
-        }
+	namespace import -force ::text
+	::foo::text .a
+	::foo::text .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1892,10 +1931,10 @@ test config-14.13 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::radiobutton
-        ::foo::radiobutton .a
-        ::foo::radiobutton .b
-        }
+	namespace import -force ::radiobutton
+	::foo::radiobutton .a
+	::foo::radiobutton .b
+	}
     ]
     destroy .a .b
 } -result {}
@@ -1903,27 +1942,20 @@ test config-14.14 {Tk_CreateOptionTable - use with namespace import} -setup {
     namespace export -clear *
 } -body {
     namespace eval ::foo [subst {
-        namespace import -force ::checkbutton
-        ::foo::checkbutton .a
-        ::foo::checkbutton .b
-        }
+	namespace import -force ::checkbutton
+	::foo::checkbutton .a
+	::foo::checkbutton .b
+	}
     ]
     destroy .a .b
 } -result {}
 
+#
+# TESTFILE CLEANUP
+#
 
-# cleanup
 deleteWindows
 if {[testConstraint testobjconfig]} {
     killTables
 }
 cleanupTests
-return
-
-
-
-
-
-
-
-

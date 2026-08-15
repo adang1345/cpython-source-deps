@@ -5,8 +5,8 @@
  *	visuals and colormaps. This code is based on a prototype
  *	implementation by Paul Mackerras.
  *
- * Copyright (c) 1994 The Regents of the University of California.
- * Copyright (c) 1994-1997 Sun Microsystems, Inc.
+ * Copyright © 1994 The Regents of the University of California.
+ * Copyright © 1994-1997 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -20,10 +20,10 @@
  */
 
 typedef struct VisualDictionary {
-    const char *name;		/* Textual name of class. */
-    int minLength;		/* Minimum # characters that must be specified
+    char name[12];		/* Textual name of class. */
+    unsigned short minLength;		/* Minimum # characters that must be specified
 				 * for an unambiguous match. */
-    int class;			/* X symbol for class. */
+    short c_class;			/* X symbol for class. */
 } VisualDictionary;
 static const VisualDictionary visualNames[] = {
     {"best",		1,	0},
@@ -35,7 +35,7 @@ static const VisualDictionary visualNames[] = {
     {"staticgray",	7,	StaticGray},
     {"staticgrey",	7,	StaticGray},
     {"truecolor",	1,	TrueColor},
-    {NULL,		0,	0},
+    {"",		0,	0},
 };
 
 /*
@@ -46,7 +46,7 @@ static const VisualDictionary visualNames[] = {
 struct TkColormap {
     Colormap colormap;		/* X's identifier for the colormap. */
     Visual *visual;		/* Visual for which colormap was allocated. */
-    int refCount;		/* How many uses of the colormap are still
+    size_t refCount;		/* How many uses of the colormap are still
 				 * outstanding (calls to Tk_GetColormap minus
 				 * calls to Tk_FreeColormap). */
     int shareable;		/* 0 means this colormap was allocated by a
@@ -96,10 +96,10 @@ Tk_GetVisual(
 				 * Tk_FreeColormap. */
 {
     Tk_Window tkwin2;
-    XVisualInfo template, *visInfoList, *bestPtr;
+    XVisualInfo templ, *visInfoList, *bestPtr;
     long mask;
     Visual *visual;
-    ptrdiff_t length;
+    size_t length;
     int c, numVisuals, prio, bestPrio, i;
     const char *p;
     const VisualDictionary *dictPtr;
@@ -137,20 +137,20 @@ Tk_GetVisual(
 		for (cmapPtr = dispPtr->cmapPtr; cmapPtr != NULL;
 			cmapPtr = cmapPtr->nextPtr) {
 		    if (cmapPtr->colormap == *colormapPtr) {
-			cmapPtr->refCount += 1;
+			cmapPtr->refCount++;
 			break;
 		    }
 		}
 	    }
 	    return visual;
 	}
-	template.depth = Tk_Depth(tkwin2);
-	template.class = visual->class;
-	template.red_mask = visual->red_mask;
-	template.green_mask = visual->green_mask;
-	template.blue_mask = visual->blue_mask;
-	template.colormap_size = visual->map_entries;
-	template.bits_per_rgb = visual->bits_per_rgb;
+	templ.depth = Tk_Depth(tkwin2);
+	templ.c_class = visual->c_class;
+	templ.red_mask = visual->red_mask;
+	templ.green_mask = visual->green_mask;
+	templ.blue_mask = visual->blue_mask;
+	templ.colormap_size = visual->map_entries;
+	templ.bits_per_rgb = visual->bits_per_rgb;
 	mask = VisualDepthMask|VisualClassMask|VisualRedMaskMask
 		|VisualGreenMaskMask|VisualBlueMaskMask|VisualColormapSizeMask
 		|VisualBitsPerRGBMask;
@@ -175,10 +175,10 @@ Tk_GetVisual(
 	if (Tcl_GetInt(interp, string, &visualId) == TCL_ERROR) {
 	    Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 		    "bad X identifier for visual: \"%s\"", string));
-	    Tcl_SetErrorCode(interp, "TK", "VALUE", "VISUALID", NULL);
+	    Tcl_SetErrorCode(interp, "TK", "VALUE", "VISUALID", (char *)NULL);
 	    return NULL;
 	}
-	template.visualid = visualId;
+	templ.visualid = visualId;
 	mask = VisualIDMask;
     } else {
 	/*
@@ -192,34 +192,33 @@ Tk_GetVisual(
 	    }
 	}
 	length = p - string;
-	template.class = -1;
-	for (dictPtr = visualNames; dictPtr->name != NULL; dictPtr++) {
+	templ.c_class = -1;
+	for (dictPtr = visualNames; dictPtr->minLength; dictPtr++) {
 	    if ((dictPtr->name[0] == c) && (length >= dictPtr->minLength)
-		    && (strncmp(string, dictPtr->name,
-		    (size_t) length) == 0)) {
-		template.class = dictPtr->class;
+		    && (strncmp(string, dictPtr->name, length) == 0)) {
+		templ.c_class = dictPtr->c_class;
 		break;
 	    }
 	}
-	if (template.class == -1) {
+	if (templ.c_class == -1) {
 	    Tcl_Obj *msgObj = Tcl_ObjPrintf(
 		    "unknown or ambiguous visual name \"%s\": class must be ",
 		    string);
 
-	    for (dictPtr = visualNames; dictPtr->name != NULL; dictPtr++) {
+	    for (dictPtr = visualNames; dictPtr->minLength; dictPtr++) {
 		Tcl_AppendPrintfToObj(msgObj, "%s, ", dictPtr->name);
 	    }
-	    Tcl_AppendToObj(msgObj, "or default", -1);
+	    Tcl_AppendToObj(msgObj, "or default", TCL_INDEX_NONE);
 	    Tcl_SetObjResult(interp, msgObj);
-	    Tcl_SetErrorCode(interp, "TK", "LOOKUP", "VISUAL", string, NULL);
+	    Tcl_SetErrorCode(interp, "TK", "LOOKUP", "VISUAL", string, (char *)NULL);
 	    return NULL;
 	}
 	while (isspace(UCHAR(*p))) {
 	    p++;
 	}
 	if (*p == 0) {
-	    template.depth = 10000;
-	} else if (Tcl_GetInt(interp, p, &template.depth) != TCL_OK) {
+	    templ.depth = 10000;
+	} else if (Tcl_GetInt(interp, p, &templ.depth) != TCL_OK) {
 	    return NULL;
 	}
 	if (c == 'b') {
@@ -234,14 +233,14 @@ Tk_GetVisual(
      * an error if there are none that match.
      */
 
-    template.screen = Tk_ScreenNumber(tkwin);
+    templ.screen = Tk_ScreenNumber(tkwin);
     mask |= VisualScreenMask;
-    visInfoList = XGetVisualInfo(Tk_Display(tkwin), mask, &template,
+    visInfoList = XGetVisualInfo(Tk_Display(tkwin), mask, &templ,
 	    &numVisuals);
     if (visInfoList == NULL) {
 	Tcl_SetObjResult(interp, Tcl_NewStringObj(
-		"couldn't find an appropriate visual", -1));
-	Tcl_SetErrorCode(interp, "TK", "VISUAL", "INAPPROPRIATE", NULL);
+		"couldn't find an appropriate visual", TCL_INDEX_NONE));
+	Tcl_SetErrorCode(interp, "TK", "VISUAL", "INAPPROPRIATE", (char *)NULL);
 	return NULL;
     }
 
@@ -262,7 +261,7 @@ Tk_GetVisual(
     bestPrio = 0;
     bestPtr = NULL;
     for (i = 0; i < numVisuals; i++) {
-	switch (visInfoList[i].class) {
+	switch (visInfoList[i].c_class) {
 	case DirectColor:
 	    prio = 5; break;
 	case GrayScale:
@@ -286,11 +285,11 @@ Tk_GetVisual(
 	    goto newBest;
 	}
 	if (visInfoList[i].depth < bestPtr->depth) {
-	    if (visInfoList[i].depth >= template.depth) {
+	    if (visInfoList[i].depth >= templ.depth) {
 		goto newBest;
 	    }
 	} else if (visInfoList[i].depth > bestPtr->depth) {
-	    if (bestPtr->depth < template.depth) {
+	    if (bestPtr->depth < templ.depth) {
 		goto newBest;
 	    }
 	} else {
@@ -307,7 +306,7 @@ Tk_GetVisual(
     CLANG_ASSERT(bestPtr);
     *depthPtr = bestPtr->depth;
     visual = bestPtr->visual;
-    XFree((char *) visInfoList);
+    XFree(visInfoList);
 
     /*
      * If we need to find a colormap for this visual, do it now. If the visual
@@ -324,11 +323,11 @@ Tk_GetVisual(
 		    cmapPtr = cmapPtr->nextPtr) {
 		if (cmapPtr->shareable && (cmapPtr->visual == visual)) {
 		    *colormapPtr = cmapPtr->colormap;
-		    cmapPtr->refCount += 1;
+		    cmapPtr->refCount++;
 		    goto done;
 		}
 	    }
-	    cmapPtr = ckalloc(sizeof(TkColormap));
+	    cmapPtr = (TkColormap *)ckalloc(sizeof(TkColormap));
 	    cmapPtr->colormap = XCreateColormap(Tk_Display(tkwin),
 		    RootWindowOfScreen(Tk_Screen(tkwin)), visual,
 		    AllocNone);
@@ -383,7 +382,7 @@ Tk_GetColormap(
      */
 
     if (strcmp(string, "new") == 0) {
-	cmapPtr = ckalloc(sizeof(TkColormap));
+	cmapPtr = (TkColormap *)ckalloc(sizeof(TkColormap));
 	cmapPtr->colormap = XCreateColormap(Tk_Display(tkwin),
 		RootWindowOfScreen(Tk_Screen(tkwin)), Tk_Visual(tkwin),
 		AllocNone);
@@ -408,13 +407,13 @@ Tk_GetColormap(
     if (Tk_Screen(other) != Tk_Screen(tkwin)) {
 	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 		"can't use colormap for %s: not on same screen", string));
-	Tcl_SetErrorCode(interp, "TK", "COLORMAP", "SCREEN", NULL);
+	Tcl_SetErrorCode(interp, "TK", "COLORMAP", "SCREEN", (char *)NULL);
 	return None;
     }
     if (Tk_Visual(other) != Tk_Visual(tkwin)) {
 	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 		"can't use colormap for %s: incompatible visuals", string));
-	Tcl_SetErrorCode(interp, "TK", "COLORMAP", "INCOMPATIBLE", NULL);
+	Tcl_SetErrorCode(interp, "TK", "COLORMAP", "INCOMPATIBLE", (char *)NULL);
 	return None;
     }
     colormap = Tk_Colormap(other);
@@ -427,7 +426,7 @@ Tk_GetColormap(
     for (cmapPtr = dispPtr->cmapPtr; cmapPtr != NULL;
 	    cmapPtr = cmapPtr->nextPtr) {
 	if (cmapPtr->colormap == colormap) {
-	    cmapPtr->refCount += 1;
+	    cmapPtr->refCount++;
 	}
     }
     return colormap;
@@ -476,8 +475,7 @@ Tk_FreeColormap(
     for (prevPtr = NULL, cmapPtr = dispPtr->cmapPtr; cmapPtr != NULL;
 	    prevPtr = cmapPtr, cmapPtr = cmapPtr->nextPtr) {
 	if (cmapPtr->colormap == colormap) {
-	    cmapPtr->refCount -= 1;
-	    if (cmapPtr->refCount == 0) {
+	    if (cmapPtr->refCount-- <= 1) {
 		XFreeColormap(display, colormap);
 		if (prevPtr == NULL) {
 		    dispPtr->cmapPtr = cmapPtr->nextPtr;
@@ -534,7 +532,7 @@ Tk_PreserveColormap(
     for (cmapPtr = dispPtr->cmapPtr; cmapPtr != NULL;
 	    cmapPtr = cmapPtr->nextPtr) {
 	if (cmapPtr->colormap == colormap) {
-	    cmapPtr->refCount += 1;
+	    cmapPtr->refCount++;
 	    return;
 	}
     }

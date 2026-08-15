@@ -3,8 +3,8 @@
  *
  *	Functions to map color names to system color values.
  *
- * Copyright (c) 1995 Sun Microsystems, Inc.
- * Copyright (c) 1994 Software Research Associates, Inc.
+ * Copyright © 1995 Sun Microsystems, Inc.
+ * Copyright © 1994 Software Research Associates, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -58,6 +58,7 @@ static const SystemColorEntry sysColors[] = {
     {"InfoText",		COLOR_INFOTEXT},
     {"Menu",			COLOR_MENU},
     {"MenuText",		COLOR_MENUTEXT},
+    {"PlaceHolderText",		COLOR_GRAYTEXT},
     {"Scrollbar",		COLOR_SCROLLBAR},
     {"Window",			COLOR_WINDOW},
     {"WindowFrame",		COLOR_WINDOWFRAME},
@@ -155,7 +156,7 @@ FindSystemColor(
 TkColor *
 TkpGetColor(
     Tk_Window tkwin,		/* Window in which color will be used. */
-    Tk_Uid name)		/* Name of color to allocated (in form
+    const char *name)		/* Name of color to allocated (in form
 				 * suitable for passing to XParseColor). */
 {
     WinColor *winColPtr;
@@ -172,16 +173,16 @@ TkpGetColor(
     if (((strncasecmp(name, "system", 6) == 0)
 	    && FindSystemColor(name+6, &color, &index))
 	    || TkParseColor(Tk_Display(tkwin), Tk_Colormap(tkwin), name,
-		    &color)) {
-	winColPtr = ckalloc(sizeof(WinColor));
+		    &color) != 0) {
+	winColPtr = (WinColor *)ckalloc(sizeof(WinColor));
 	winColPtr->info.color = color;
 	winColPtr->index = index;
 
 	XAllocColor(Tk_Display(tkwin), Tk_Colormap(tkwin),
 		&winColPtr->info.color);
- 	return (TkColor *) winColPtr;
+	return (TkColor *)winColPtr;
     }
-    return (TkColor *) NULL;
+    return (TkColor *)NULL;
 }
 
 /*
@@ -211,7 +212,7 @@ TkpGetColorByValue(
     XColor *colorPtr)		/* Red, green, and blue fields indicate
 				 * desired color. */
 {
-    WinColor *tkColPtr = ckalloc(sizeof(WinColor));
+    WinColor *tkColPtr = (WinColor *)ckalloc(sizeof(WinColor));
 
     tkColPtr->info.color.red = colorPtr->red;
     tkColPtr->info.color.green = colorPtr->green;
@@ -274,7 +275,7 @@ int
 TkWinIndexOfColor(
     XColor *colorPtr)
 {
-    register WinColor *winColPtr = (WinColor *) colorPtr;
+    WinColor *winColPtr = (WinColor *) colorPtr;
     if (winColPtr->info.magic == COLOR_MAGIC) {
 	return winColPtr->index;
     }
@@ -300,7 +301,7 @@ TkWinIndexOfColor(
 
 int
 XAllocColor(
-    Display *display,
+    TCL_UNUSED(Display *),
     Colormap colormap,
     XColor *color)
 {
@@ -308,15 +309,16 @@ XAllocColor(
     PALETTEENTRY entry, closeEntry;
     HDC dc = GetDC(NULL);
 
-    entry.peRed = (color->red) >> 8;
-    entry.peGreen = (color->green) >> 8;
-    entry.peBlue = (color->blue) >> 8;
+    entry.peRed = (BYTE)((color->red) >> 8);
+    entry.peGreen = (BYTE)((color->green) >> 8);
+    entry.peBlue = (BYTE)((color->blue) >> 8);
     entry.peFlags = 0;
 
     if (GetDeviceCaps(dc, RASTERCAPS) & RC_PALETTE) {
-	unsigned long sizePalette = GetDeviceCaps(dc, SIZEPALETTE);
+	unsigned long sizePalette = (unsigned long)GetDeviceCaps(dc, SIZEPALETTE);
 	UINT newPixel, closePixel;
-	int new, refCount;
+	int isNew;
+	size_t refCount;
 	Tcl_HashEntry *entryPtr;
 	UINT index;
 
@@ -346,7 +348,7 @@ XAllocColor(
 		color->blue  = closeEntry.peBlue * 257;
 		entry = closeEntry;
 		if (index >= cmap->size) {
-		    OutputDebugStringA("XAllocColor: Colormap is bigger than we thought");
+		    OutputDebugStringW(L"XAllocColor: Colormap is bigger than we thought");
 		}
 	    } else {
 		cmap->size++;
@@ -357,11 +359,11 @@ XAllocColor(
 
 	color->pixel = PALETTERGB(entry.peRed, entry.peGreen, entry.peBlue);
 	entryPtr = Tcl_CreateHashEntry(&cmap->refCounts,
-		INT2PTR(color->pixel), &new);
-	if (new) {
+		INT2PTR(color->pixel), &isNew);
+	if (isNew) {
 	    refCount = 1;
 	} else {
-	    refCount = (PTR2INT(Tcl_GetHashValue(entryPtr))) + 1;
+	    refCount = (size_t)Tcl_GetHashValue(entryPtr) + 1;
 	}
 	Tcl_SetHashValue(entryPtr, INT2PTR(refCount));
     } else {
@@ -399,15 +401,16 @@ XAllocColor(
 
 int
 XFreeColors(
-    Display *display,
+    TCL_UNUSED(Display *),
     Colormap colormap,
     unsigned long *pixels,
     int npixels,
-    unsigned long planes)
+    TCL_UNUSED(unsigned long))
 {
     TkWinColormap *cmap = (TkWinColormap *) colormap;
     COLORREF cref;
-    UINT count, index, refCount;
+    UINT count, index;
+    size_t refCount;
     int i;
     PALETTEENTRY entry, *entries;
     Tcl_HashEntry *entryPtr;
@@ -427,14 +430,14 @@ XFreeColors(
 	    if (!entryPtr) {
 		Tcl_Panic("Tried to free a color that isn't allocated");
 	    }
-	    refCount = PTR2INT(Tcl_GetHashValue(entryPtr)) - 1;
+	    refCount = (size_t)Tcl_GetHashValue(entryPtr) - 1;
 	    if (refCount == 0) {
 		cref = pixels[i] & 0x00ffffff;
 		index = GetNearestPaletteIndex(cmap->palette, cref);
 		GetPaletteEntries(cmap->palette, index, 1, &entry);
 		if (cref == RGB(entry.peRed, entry.peGreen, entry.peBlue)) {
 		    count = cmap->size - index;
-		    entries = ckalloc(sizeof(PALETTEENTRY) * count);
+		    entries = (PALETTEENTRY *)ckalloc(sizeof(PALETTEENTRY) * count);
 		    GetPaletteEntries(cmap->palette, index+1, count, entries);
 		    SetPaletteEntries(cmap->palette, index, count, entries);
 		    ckfree(entries);
@@ -470,17 +473,17 @@ XFreeColors(
 
 Colormap
 XCreateColormap(
-    Display *display,
-    Window w,
-    Visual *visual,
-    int alloc)
+    TCL_UNUSED(Display *),
+    TCL_UNUSED(Window),
+    TCL_UNUSED(Visual *),
+    TCL_UNUSED(int))
 {
     char logPalBuf[sizeof(LOGPALETTE) + 256 * sizeof(PALETTEENTRY)];
     LOGPALETTE *logPalettePtr;
     PALETTEENTRY *entryPtr;
     TkWinColormap *cmap;
     Tcl_HashEntry *hashPtr;
-    int new;
+    int isNew;
     UINT i;
     HPALETTE sysPal;
 
@@ -491,10 +494,10 @@ XCreateColormap(
     logPalettePtr = (LOGPALETTE *) logPalBuf;
     logPalettePtr->palVersion = 0x300;
     sysPal = (HPALETTE) GetStockObject(DEFAULT_PALETTE);
-    logPalettePtr->palNumEntries = GetPaletteEntries(sysPal, 0, 256,
+    logPalettePtr->palNumEntries = (WORD)GetPaletteEntries(sysPal, 0, 256,
 	    logPalettePtr->palPalEntry);
 
-    cmap = ckalloc(sizeof(TkWinColormap));
+    cmap = (TkWinColormap *)ckalloc(sizeof(TkWinColormap));
     cmap->size = logPalettePtr->palNumEntries;
     cmap->stale = 0;
     cmap->palette = CreatePalette(logPalettePtr);
@@ -507,7 +510,7 @@ XCreateColormap(
     for (i = 0; i < logPalettePtr->palNumEntries; i++) {
 	entryPtr = logPalettePtr->palPalEntry + i;
 	hashPtr = Tcl_CreateHashEntry(&cmap->refCounts, INT2PTR(PALETTERGB(
-		entryPtr->peRed, entryPtr->peGreen, entryPtr->peBlue)), &new);
+		entryPtr->peRed, entryPtr->peGreen, entryPtr->peBlue)), &isNew);
 	Tcl_SetHashValue(hashPtr, INT2PTR(1));
     }
 
@@ -533,7 +536,7 @@ XCreateColormap(
 
 int
 XFreeColormap(
-    Display *display,
+    TCL_UNUSED(Display *),
     Colormap colormap)
 {
     TkWinColormap *cmap = (TkWinColormap *) colormap;

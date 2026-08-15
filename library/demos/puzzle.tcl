@@ -7,11 +7,11 @@ if {![info exists widgetDemo]} {
     error "This script should be run from the \"widget\" demo."
 }
 
-package require Tk
+package require tk
 
 # puzzleSwitch --
 # This procedure is invoked when the user clicks on a particular button;
-# if the button is next to the empty space, it moves the button into th
+# if the button is next to the empty space, it moves the button into the
 # empty space.
 
 proc puzzleSwitch {w num} {
@@ -54,16 +54,16 @@ pack $btns -side bottom -fill x
 scrollbar $w.s
 
 # The button metrics are a bit bigger in Aqua, and since we are
-# using place which doesn't autosize, then we need to have a 
+# using place which doesn't autosize, then we need to have a
 # slightly larger frame here...
 
 if {[tk windowingsystem] eq "aqua"} {
-    set frameSize 168
+    set frameSize 126p
 } else {
-    set frameSize 120
+    set frameSize 90p
 }
 
-frame $w.frame -width $frameSize -height $frameSize -borderwidth 2\
+frame $w.frame -width $frameSize -height $frameSize -borderwidth 2 \
 	-relief sunken -bg [$w.s cget -troughcolor]
 pack $w.frame -side top -pady 1c -padx 1c
 destroy $w.s
@@ -73,7 +73,7 @@ for {set i 0} {$i < 15} {set i [expr {$i+1}]} {
     set num [lindex $order $i]
     set xpos($num) [expr {($i%4)*.25}]
     set ypos($num) [expr {($i/4)*.25}]
-    button $w.frame.$num -relief raised -text $num -highlightthickness 0 \
+    button $w.frame.$num -relief raised -text $num -bd 0 -highlightthickness 0 \
 	    -command "puzzleSwitch $w $num"
     place $w.frame.$num -relx $xpos($num) -rely $ypos($num) \
 	-relwidth .25 -relheight .25

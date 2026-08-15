@@ -3,7 +3,7 @@
  *
  *	This file contains Win32 specific cursor related routines.
  *
- * Copyright (c) 1995 Sun Microsystems, Inc.
+ * Copyright © 1995 Sun Microsystems, Inc.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -39,7 +39,7 @@ typedef struct {
  * resource identifier.
  */
 
-static struct CursorName {
+static const struct CursorName {
     const char *name;
     LPCTSTR id;
 } cursorNames[] = {
@@ -71,7 +71,7 @@ static struct CursorName {
  * The default cursor is used whenever no other cursor has been specified.
  */
 
-#define TK_DEFAULT_CURSOR	IDC_ARROW
+#define TK_DEFAULT_CURSOR	(LPCWSTR)IDC_ARROW
 
 /*
  *----------------------------------------------------------------------
@@ -93,17 +93,18 @@ TkCursor *
 TkGetCursorByName(
     Tcl_Interp *interp,		/* Interpreter to use for error reporting. */
     Tk_Window tkwin,		/* Window in which cursor will be used. */
-    Tk_Uid string)		/* Description of cursor. See manual entry for
+    const char *string)		/* Description of cursor. See manual entry for
 				 * details on legal syntax. */
 {
-    struct CursorName *namePtr;
+    const struct CursorName *namePtr;
     TkWinCursor *cursorPtr;
-    int argc;
+    Tcl_Size argc;
     const char **argv = NULL;
+    (void)tkwin;
 
     /*
      * All cursor names are valid lists of one element (for
-     * Unix-compatability), even unadorned system cursor names.
+     * Unix-compatibility), even unadorned system cursor names.
      */
 
     if (Tcl_SplitList(interp, string, &argc, &argv) != TCL_OK) {
@@ -113,7 +114,7 @@ TkGetCursorByName(
 	goto badCursorSpec;
     }
 
-    cursorPtr = ckalloc(sizeof(TkWinCursor));
+    cursorPtr = (TkWinCursor *)ckalloc(sizeof(TkWinCursor));
     cursorPtr->info.cursor = (Tk_Cursor) cursorPtr;
     cursorPtr->winCursor = NULL;
     cursorPtr->system = 0;
@@ -125,14 +126,14 @@ TkGetCursorByName(
 	 *	-cursor @/winnt/cursors/globe.ani
 	 *	-cursor @C:/Winnt/cursors/E_arrow.cur
 	 *	-cursor {@C:/Program\ Files/Cursors/bart.ani}
-	 *      -cursor {{@C:/Program Files/Cursors/bart.ani}}
+	 *	-cursor {{@C:/Program Files/Cursors/bart.ani}}
 	 *	-cursor [list @[file join "C:/Program Files" Cursors bart.ani]]
 	 */
 
 	if (Tcl_IsSafe(interp)) {
 	    Tcl_SetObjResult(interp, Tcl_NewStringObj(
-		    "can't get cursor from a file in a safe interpreter",-1));
-	    Tcl_SetErrorCode(interp, "TK", "SAFE", "CURSOR_FILE", NULL);
+		    "cannot get cursor from a file in a safe interpreter", TCL_INDEX_NONE));
+	    Tcl_SetErrorCode(interp, "TK", "SAFE", "CURSOR_FILE", (char *)NULL);
 	    ckfree(argv);
 	    ckfree(cursorPtr);
 	    return NULL;
@@ -145,7 +146,7 @@ TkGetCursorByName(
 
 	for (namePtr = cursorNames; namePtr->name != NULL; namePtr++) {
 	    if (strcmp(namePtr->name, argv[0]) == 0) {
-		cursorPtr->winCursor = LoadCursor(NULL, namePtr->id);
+		cursorPtr->winCursor = LoadCursorW(NULL, (LPCWSTR) namePtr->id);
 		break;
 	    }
 	}
@@ -168,7 +169,7 @@ TkGetCursorByName(
 	ckfree(argv);
 	Tcl_SetObjResult(interp, Tcl_ObjPrintf(
 		"bad cursor spec \"%s\"", string));
-	Tcl_SetErrorCode(interp, "TK", "VALUE", "CURSOR", NULL);
+	Tcl_SetErrorCode(interp, "TK", "VALUE", "CURSOR", (char *)NULL);
 	return NULL;
     }
     ckfree(argv);
@@ -201,6 +202,16 @@ TkCreateCursorFromData(
     XColor fgColor,		/* Foreground color for cursor. */
     XColor bgColor)		/* Background color for cursor. */
 {
+    (void)tkwin;
+    (void)source;
+    (void)mask;
+    (void)width;
+    (void)height;
+    (void)xHot;
+    (void)yHot;
+    (void)fgColor;
+    (void)bgColor;
+
     return NULL;
 }
 
@@ -225,6 +236,8 @@ void
 TkpFreeCursor(
     TkCursor *cursorPtr)
 {
+    (void)cursorPtr;
+
     /* TkWinCursor *winCursorPtr = (TkWinCursor *) cursorPtr; */
 }
 
@@ -253,7 +266,7 @@ TkpSetCursor(
     TkWinCursor *winCursor = (TkWinCursor *) cursor;
 
     if (winCursor == NULL || winCursor->winCursor == NULL) {
-	hcursor = LoadCursor(NULL, TK_DEFAULT_CURSOR);
+	hcursor = LoadCursorW(NULL, TK_DEFAULT_CURSOR);
     } else {
 	hcursor = winCursor->winCursor;
     }

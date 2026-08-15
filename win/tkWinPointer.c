@@ -3,8 +3,8 @@
  *
  *	Windows specific mouse tracking code.
  *
- * Copyright (c) 1995-1997 Sun Microsystems, Inc.
- * Copyright (c) 1998-1999 by Scriptics Corporation.
+ * Copyright © 1995-1997 Sun Microsystems, Inc.
+ * Copyright © 1998-1999 Scriptics Corporation.
  *
  * See the file "license.terms" for information on usage and redistribution of
  * this file, and for a DISCLAIMER OF ALL WARRANTIES.
@@ -31,7 +31,7 @@ static int mouseTimerSet = 0;		/* 1 if the mouse timer is active. */
  * Forward declarations of procedures used in this file.
  */
 
-static void		MouseTimerProc(ClientData clientData);
+static void		MouseTimerProc(void *clientData);
 
 /*
  *----------------------------------------------------------------------
@@ -81,13 +81,19 @@ TkWinGetModifierState(void)
     if (GetKeyState(VK_RBUTTON) & 0x8000) {
 	state |= Button3Mask;
     }
+    if (GetKeyState(VK_XBUTTON1) & 0x8000) {
+	state |= Button4Mask;
+    }
+    if (GetKeyState(VK_XBUTTON2) & 0x8000) {
+	state |= Button5Mask;
+    }
     return state;
 }
 
 /*
  *----------------------------------------------------------------------
  *
- * Tk_PointerEvent --
+ * TkWinPointerEvent --
  *
  *	This procedure is called for each pointer-related event. It converts
  *	the position to root coords and updates the global pointer state
@@ -103,7 +109,7 @@ TkWinGetModifierState(void)
  */
 
 void
-Tk_PointerEvent(
+TkWinPointerEvent(
     HWND hwnd,			/* Window for coords, or NULL for the root
 				 * window. */
     int x, int y)		/* Coords relative to hwnd, or screen if hwnd
@@ -173,6 +179,12 @@ XGrabKeyboard(
     int keyboard_mode,
     Time time)
 {
+    (void)display;
+    (void)owner_events;
+    (void)pointer_mode;
+    (void)keyboard_mode;
+    (void)time;
+
     keyboardWinPtr = TkWinGetWinPtr(grab_window);
     return GrabSuccess;
 }
@@ -198,6 +210,9 @@ XUngrabKeyboard(
     Display *display,
     Time time)
 {
+    (void)display;
+    (void)time;
+
     keyboardWinPtr = NULL;
     return Success;
 }
@@ -220,19 +235,14 @@ XUngrabKeyboard(
 
 void
 MouseTimerProc(
-    ClientData clientData)
+    TCL_UNUSED(void *))
 {
     POINT pos;
 
     mouseTimerSet = 0;
 
-    /*
-     * Get the current mouse position and window. Don't do anything if the
-     * mouse hasn't moved since the last time we looked.
-     */
-
     GetCursorPos(&pos);
-    Tk_PointerEvent(NULL, pos.x, pos.y);
+    TkWinPointerEvent(NULL, pos.x, pos.y);
 }
 
 /*
@@ -284,6 +294,7 @@ TkGetPointerCoords(
     int *xPtr, int *yPtr)	/* Store pointer coordinates here. */
 {
     POINT point;
+    (void)tkwin;
 
     GetCursorPos(&point);
     *xPtr = point.x;
@@ -312,16 +323,16 @@ TkGetPointerCoords(
 Bool
 XQueryPointer(
     Display *display,
-    Window w,
-    Window *root_return,
-    Window *child_return,
+    TCL_UNUSED(Window),
+    TCL_UNUSED(Window *),
+    TCL_UNUSED(Window *),
     int *root_x_return,
     int *root_y_return,
-    int *win_x_return,
-    int *win_y_return,
+    TCL_UNUSED(int *),
+    TCL_UNUSED(int *),
     unsigned int *mask_return)
 {
-    display->request++;
+    LastKnownRequestProcessed(display)++;
     TkGetPointerCoords(NULL, root_x_return, root_y_return);
     *mask_return = TkWinGetModifierState();
     return True;
@@ -330,10 +341,10 @@ XQueryPointer(
 /*
  *----------------------------------------------------------------------
  *
- * XWarpPointer --
+ * XWarpPointer, TkpWarpPointer --
  *
- *	Move pointer to new location. This is not a complete implementation of
- *	this function.
+ *	Move pointer to new location. Note that implementation of XWarpPointer
+ *	is incomplete.
  *
  * Results:
  *	None.
@@ -343,6 +354,55 @@ XQueryPointer(
  *
  *----------------------------------------------------------------------
  */
+
+/*
+ * TkSetCursorPos is a helper function replacing SetCursorPos since this
+ * latter Windows function appears to have been broken by Microsoft
+ * since Win10 Falls Creator Update - See ticket [69b48f427e] along with
+ * several other Internet reports about this breakage.
+ */
+
+void TkSetCursorPos(
+    int x,
+    int y)
+{
+    INPUT input;
+    int xscreen = (int)(GetSystemMetrics(SM_CXSCREEN) - 1);
+    int yscreen = (int)(GetSystemMetrics(SM_CYSCREEN) - 1);
+
+    /*
+     * A multi-screen system may have different logical pixels/inch, with
+     * Windows applying behind-the-scenes scaling on secondary screens.
+     * Don't try and emulate that, instead fall back to SetCursor if the
+     * requested position is off the primary screen.
+     */
+    if ( x < 0 || x > xscreen || y < 0 || y > yscreen ) {
+	SetCursorPos(x, y);
+	return;
+    }
+
+    input.type = INPUT_MOUSE;
+    input.mi.dx = (x * 65535 + xscreen/2) / xscreen;
+    input.mi.dy = (y * 65535 + yscreen/2) / yscreen;
+
+    /*
+     * Horrible workaround here. There is a bug on Win 10: when warping to
+     * pixel (x = 0, y = 0) the SendInput() below just does not move the
+     * mouse pointer. However, as soon as dx or dy is non zero it moves as
+     * expected. Given the scaling factor of 65535 (see above),
+     * (dx = 1 , dy = 0) still means pixel (x = 0, y = 0).
+     * See ticket [69b48f427e].
+     */
+    if (input.mi.dx == 0 && input.mi.dy == 0) {
+	input.mi.dx = 1;
+    }
+
+    input.mi.mouseData = 0;
+    input.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_MOVE;
+    input.mi.time = 0;
+    input.mi.dwExtraInfo = 0;
+    SendInput(1, &input, sizeof(input));
+}
 
 int
 XWarpPointer(
@@ -357,9 +417,15 @@ XWarpPointer(
     int dest_y)
 {
     RECT r;
+    (void)display;
+    (void)src_w;
+    (void)src_x;
+    (void)src_y;
+    (void)src_width;
+    (void)src_height;
 
     GetWindowRect(Tk_GetHWND(dest_w), &r);
-    SetCursorPos(r.left+dest_x, r.top+dest_y);
+    TkSetCursorPos(r.left+dest_x, r.top+dest_y);
     return Success;
 }
 
@@ -367,14 +433,22 @@ void
 TkpWarpPointer(
     TkDisplay *dispPtr)
 {
+    int rootx, rooty;
+    unsigned int modifierState;
+
     if (dispPtr->warpWindow) {
 	RECT r;
-
 	GetWindowRect(Tk_GetHWND(Tk_WindowId(dispPtr->warpWindow)), &r);
-	SetCursorPos(r.left + dispPtr->warpX, r.top + dispPtr->warpY);
+	TkSetCursorPos(r.left + dispPtr->warpX, r.top + dispPtr->warpY);
     } else {
-	SetCursorPos(dispPtr->warpX, dispPtr->warpY);
+	TkSetCursorPos(dispPtr->warpX, dispPtr->warpY);
     }
+
+    XQueryPointer(dispPtr->display, None, NULL, NULL, &rootx, &rooty,
+	    NULL, NULL, &modifierState);
+    Tk_Window newPointerWin = Tk_CoordsToWindow(rootx, rooty,
+	    dispPtr->warpMainwin);
+    Tk_UpdatePointer(newPointerWin, rootx, rooty, modifierState);
 }
 
 /*
@@ -401,9 +475,9 @@ XGetInputFocus(
 {
     Tk_Window tkwin = Tk_HWNDToWindow(GetFocus());
 
-    *focus_return = tkwin ? Tk_WindowId(tkwin) : None;
+    *focus_return = tkwin ? Tk_WindowId(tkwin) : 0;
     *revert_to_return = RevertToParent;
-    display->request++;
+    LastKnownRequestProcessed(display)++;
     return Success;
 }
 
@@ -428,10 +502,10 @@ int
 XSetInputFocus(
     Display *display,
     Window focus,
-    int revert_to,
-    Time time)
+    TCL_UNUSED(int),
+    TCL_UNUSED(Time))
 {
-    display->request++;
+    LastKnownRequestProcessed(display)++;
     if (focus != None) {
 	SetFocus(Tk_GetHWND(focus));
     }
@@ -535,6 +609,29 @@ TkpSetCapture(
 	captured = 0;
 	ReleaseCapture();
     }
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * TkpGetCapture --
+ *
+ *	This function requests which window is capturing the mouse.
+ *
+ * Results:
+ *	The return value is a pointer to the capture window, if there is
+ *      one, otherwise it is NULL.
+ *
+ * Side effects:
+ *	None.
+ *
+ *----------------------------------------------------------------------
+ */
+
+Tk_Window
+TkpGetCapture(void)
+{
+    return Tk_HWNDToWindow(GetCapture());
 }
 
 /*
